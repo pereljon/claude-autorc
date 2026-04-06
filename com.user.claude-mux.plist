@@ -10,7 +10,7 @@
     <array>
         <string>/bin/bash</string>
         <string>-c</string>
-        <string>exec "$HOME/Claude/start-claude-sessions.sh"</string>
+        <string>exec "$HOME/Claude/claude-mux"</string>
     </array>
 
     <key>RunAtLoad</key>

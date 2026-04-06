@@ -2,7 +2,7 @@
 
 Persistent Claude Code sessions for all your projects — accessible from anywhere via the Claude mobile app.
 
-A shell script and macOS LaunchAgent that keeps a Claude Code session running for every project directory under `~/Claude/`. Persistent sessions mean Remote Control is always available — giving you access to all your projects from the Claude mobile app, wherever you are.
+A shell script and macOS LaunchAgent that keeps a Claude Code session running for every project directory under `~/Claude/` (configurable via `BASE_DIR`). Persistent sessions mean Remote Control is always available — giving you access to all your projects from the Claude mobile app, wherever you are.
 
 ## What It Does
 
@@ -23,35 +23,38 @@ Each Claude session is injected with its tmux session name (so it can send slash
 - [tmux](https://github.com/tmux/tmux) — `brew install tmux`
 - [Claude Code](https://claude.ai/code) — `brew install claude`
 
-## Install as LaunchAgent
-
-The LaunchAgent runs the script automatically at login with a 45-second startup delay to allow system services to initialize.
+## Install
 
 ```bash
-# Copy the script to ~/Claude/
-cp claude-mux ~/Claude/
-chmod +x ~/Claude/claude-mux
-
-cp com.user.claude-mux.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.user.claude-mux.plist
-
-# Verify
-launchctl list | grep claude-sessions
+./install.sh
 ```
+
+This installs `claude-mux` to the first writable bin directory in your `PATH`, creates `~/.claude-mux-rc` with your settings, and installs the LaunchAgent so sessions start automatically at login.
+
+Options:
+
+```bash
+./install.sh --base-dir ~/work/claude              # use a different base directory
+./install.sh --bin-dir ~/.local/bin                # specify bin directory explicitly
+./install.sh --auto-git-init                       # enable git init in new projects
+./install.sh --permission-mode acceptEdits         # set default Claude permission mode
+./install.sh --cross-session-control               # enable multi-agent session control
+./install.sh --no-launchagent                      # skip LaunchAgent installation
+```
+
+The LaunchAgent runs the script at login with a 45-second startup delay to allow system services to initialize.
 
 ## Usage
 
 ```bash
-~/Claude/claude-mux              # start all sessions
-~/Claude/claude-mux --status     # show session status
-~/Claude/claude-mux --dry-run    # preview actions without executing
-~/Claude/claude-mux --shutdown   # gracefully exit all Claude sessions
-~/Claude/claude-mux --restart    # shutdown then restart all sessions
-~/Claude/claude-mux --version    # print version
-~/Claude/claude-mux --help       # show all options
-
-# Attach to a session
-tmux attach -t project-name
+claude-mux                       # start all sessions
+claude-mux project-name          # attach to a session
+claude-mux --status              # show session status
+claude-mux --dry-run             # preview actions without executing
+claude-mux --shutdown            # gracefully exit all Claude sessions
+claude-mux --restart             # shutdown then restart all sessions
+claude-mux --version             # print version
+claude-mux --help                # show all options
 
 # Watch the log
 tail -f ~/Claude/claude-mux.log
@@ -61,7 +64,7 @@ When run from the terminal, output is mirrored to stdout in real time. When run 
 
 ## Configuration
 
-On first run, `~/.claude-mux` is created automatically with all settings commented out. Edit it to override any defaults — the script never needs to be modified directly.
+On first run, `~/.claude-mux-rc` is created automatically with all settings commented out. Edit it to override any defaults — the script never needs to be modified directly.
 
 | Variable | Default | Description |
 |----------|---------|-------------|

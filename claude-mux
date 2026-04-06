@@ -5,7 +5,7 @@
 VERSION="1.0.0"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
-# Override any of these in ~/.claude-mux
+# Override any of these in ~/.claude-mux-rc
 
 # Root directory containing category and project directories.
 BASE_DIR="$HOME/Claude"
@@ -29,6 +29,7 @@ ALLOW_CROSS_SESSION_CONTROL=false
 
 DRY_RUN=false
 COMMAND="start"
+ATTACH_SESSION=""
 
 usage() {
     cat << EOF
@@ -36,6 +37,7 @@ claude-mux — Claude Code Multiplexer
 Persistent Claude Code sessions for all your projects.
 
 Usage: claude-mux [OPTIONS]
+       claude-mux SESSION_NAME
 
 Options:
   --dry-run     Print actions without executing (no sessions created or modified)
@@ -45,8 +47,11 @@ Options:
   -v, --version Print version and exit
   -h, --help    Show this help message
 
+Arguments:
+  SESSION_NAME  Attach to the named tmux session (uses switch-client inside tmux)
+
 Configuration:
-  ~/.claude-mux    User config file (created automatically on first run)
+  ~/.claude-mux-rc    User config file (created automatically on first run)
 
 Logs:
   ~/Claude/claude-mux.log
@@ -62,15 +67,19 @@ while [[ $# -gt 0 ]]; do
         -v|--version)     echo "claude-mux $VERSION"; exit 0 ;;
         -h|--help)        usage; exit 0 ;;
         -*)               echo "Unknown option: $1" >&2; echo >&2; usage >&2; exit 1 ;;
-        *)                echo "Unexpected argument: $1" >&2; echo >&2; usage >&2; exit 1 ;;
+        *)
+            if [[ -n "$ATTACH_SESSION" ]]; then
+                echo "Unexpected argument: $1" >&2; echo >&2; usage >&2; exit 1
+            fi
+            ATTACH_SESSION="$1"; COMMAND="attach"; shift ;;
     esac
 done
 
 # ── User config (overrides defaults above) ────────────────────────────────────
 
-if [[ ! -f "$HOME/.claude-mux" ]]; then
-    cat > "$HOME/.claude-mux" << 'CONFIG_EOF'
-# ~/.claude-mux — Claude Auto Remote Control user configuration
+if [[ ! -f "$HOME/.claude-mux-rc" ]]; then
+    cat > "$HOME/.claude-mux-rc" << 'CONFIG_EOF'
+# ~/.claude-mux-rc — claude-mux user configuration
 # Generated on first run. Uncomment and edit settings to override defaults.
 # This file is sourced by claude-mux at startup.
 
@@ -94,19 +103,19 @@ if [[ ! -f "$HOME/.claude-mux" ]]; then
 # Default: false
 #ALLOW_CROSS_SESSION_CONTROL=false
 CONFIG_EOF
-    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Created default config at $HOME/.claude-mux" >> "$BASE_DIR/startup.log"
+    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Created default config at $HOME/.claude-mux-rc" >> "$BASE_DIR/claude-mux.log"
 fi
 
 # shellcheck source=/dev/null
-source "$HOME/.claude-mux"
+source "$HOME/.claude-mux-rc"
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 SLEEP_BETWEEN=5
 LOG_FILE="$BASE_DIR/claude-mux.log"
 
-TMUX="/opt/homebrew/bin/tmux"
-CLAUDE="/opt/homebrew/bin/claude"
+TMUX_BIN="/opt/homebrew/bin/tmux"
+CLAUDE_BIN="/opt/homebrew/bin/claude"
 
 export PATH="/opt/homebrew/bin:$PATH"
 
@@ -127,7 +136,7 @@ log() {
 claude_running_in_session() {
     local session_name="$1"
     local pane_pid
-    pane_pid=$("$TMUX" display-message -t "$session_name" -p '#{pane_pid}' 2>/dev/null)
+    pane_pid=$("$TMUX_BIN" display-message -t "$session_name" -p '#{pane_pid}' 2>/dev/null)
     [[ -z "$pane_pid" ]] && return 1
 
     local pane_children tree_cmds=""
@@ -139,6 +148,22 @@ claude_running_in_session() {
     echo "$tree_cmds" | grep -q "claude"
 }
 
+# ── Attach to session ─────────────────────────────────────────────────────────
+
+if [[ "$COMMAND" == "attach" ]]; then
+    if ! "$TMUX_BIN" has-session -t "$ATTACH_SESSION" 2>/dev/null; then
+        echo "No tmux session named '$ATTACH_SESSION'" >&2
+        echo "Run 'claude-mux --status' to see available sessions." >&2
+        exit 1
+    fi
+    # $TMUX_PANE is set by tmux in child processes — use it to detect if we're inside tmux
+    if [[ -n "${TMUX_PANE:-}" ]]; then
+        exec "$TMUX_BIN" switch-client -t "$ATTACH_SESSION"
+    else
+        exec "$TMUX_BIN" attach-session -t "$ATTACH_SESSION"
+    fi
+fi
+
 # ── Startup delay (LaunchAgent only — no terminal attached) ───────────────────
 
 if [[ "$COMMAND" == "start" && ! -t 1 && "$DRY_RUN" != "true" ]]; then
@@ -148,13 +173,13 @@ fi
 
 # ── Dependency check ──────────────────────────────────────────────────────────
 
-if [[ ! -x "$TMUX" ]]; then
-    log "ERROR: tmux not found at $TMUX — aborting"
+if [[ ! -x "$TMUX_BIN" ]]; then
+    log "ERROR: tmux not found at $TMUX_BIN — aborting"
     exit 1
 fi
 
-if [[ ! -x "$CLAUDE" ]]; then
-    log "ERROR: claude not found at $CLAUDE — aborting"
+if [[ ! -x "$CLAUDE_BIN" ]]; then
+    log "ERROR: claude not found at $CLAUDE_BIN — aborting"
     exit 1
 fi
 
@@ -164,7 +189,7 @@ shutdown_claude_sessions() {
     log "=== claude-mux shutdown starting (dry-run=${DRY_RUN}) ==="
 
     local sessions
-    sessions=$("$TMUX" list-sessions -F '#{session_name}' 2>/dev/null) || {
+    sessions=$("$TMUX_BIN" list-sessions -F '#{session_name}' 2>/dev/null) || {
         log "No tmux sessions found"
         log "=== claude-mux shutdown complete ==="
         return
@@ -175,7 +200,7 @@ shutdown_claude_sessions() {
         [[ -z "$session" ]] && continue
         if claude_running_in_session "$session"; then
             log "Sending /exit to session '$session'"
-            [[ "$DRY_RUN" != "true" ]] && "$TMUX" send-keys -t "$session" "/exit" Enter
+            [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" send-keys -t "$session" "/exit" Enter
             (( shutdown_count++ ))
         fi
     done <<< "$sessions"
@@ -191,7 +216,7 @@ shutdown_claude_sessions() {
 
 status_claude_sessions() {
     local sessions
-    sessions=$("$TMUX" list-sessions -F '#{session_name}' 2>/dev/null) || {
+    sessions=$("$TMUX_BIN" list-sessions -F '#{session_name}' 2>/dev/null) || {
         echo "No tmux sessions found"
         return
     }
@@ -346,7 +371,7 @@ create_claude_session() {
     local session_name="$1"
     local working_dir="$2"
 
-    if "$TMUX" has-session -t "$session_name" 2>/dev/null; then
+    if "$TMUX_BIN" has-session -t "$session_name" 2>/dev/null; then
         # Session exists — check if claude is still running inside it.
         # If the pane is at a shell prompt (claude exited), relaunch.
         if claude_running_in_session "$session_name"; then
@@ -358,9 +383,9 @@ create_claude_session() {
 
     [[ "$DRY_RUN" == "true" ]] && return
 
-    if ! "$TMUX" has-session -t "$session_name" 2>/dev/null; then
+    if ! "$TMUX_BIN" has-session -t "$session_name" 2>/dev/null; then
         log "Creating tmux session '$session_name' in $working_dir"
-        "$TMUX" new-session -d -s "$session_name" -c "$working_dir"
+        "$TMUX_BIN" new-session -d -s "$session_name" -c "$working_dir"
     else
         log "Relaunching claude in existing session '$session_name'"
     fi
@@ -386,15 +411,15 @@ claude --remote-control --permission-mode auto --name '${session_name}' --append
 LAUNCH_EOF
     chmod +x "$launch_script"
 
-    "$TMUX" send-keys -t "$session_name" "bash '${launch_script}'" Enter
+    "$TMUX_BIN" send-keys -t "$session_name" "bash '${launch_script}'" Enter
 
     # Auto-accept the workspace trust prompt if it appears.
     # All directories managed by this script are the user's own projects.
     # Option 1 is pre-selected (❯); just send Enter to confirm.
     sleep 5
-    if "$TMUX" capture-pane -t "$session_name" -p 2>/dev/null | grep -q "trust"; then
+    if "$TMUX_BIN" capture-pane -t "$session_name" -p 2>/dev/null | grep -q "trust"; then
         log "Auto-accepting trust prompt for '$session_name'"
-        "$TMUX" send-keys -t "$session_name" "" Enter
+        "$TMUX_BIN" send-keys -t "$session_name" "" Enter
     fi
 
     sleep "$SLEEP_BETWEEN"
@@ -414,7 +439,7 @@ migrate_stray_sessions() {
     done
 
     local pids
-    pids=$(pgrep -f "$CLAUDE" 2>/dev/null) || return 0
+    pids=$(pgrep -f "$CLAUDE_BIN" 2>/dev/null) || return 0
 
     local found_any=false
 
@@ -526,7 +551,7 @@ start_sessions() {
                 continue
             fi
 
-            session_name="$(echo "$dir_name" | tr ' ' '-' | tr -cs 'a-zA-Z0-9-' '-' | sed 's/^-*//' | sed 's/-*$//')"
+            session_name="$(echo "$dir_name" | tr ' ' '-' | tr -cs 'a-zA-Z0-9-' '-' | sed 's/-\{2,\}/-/g' | sed 's/^-*//' | sed 's/-*$//')"
             if [[ "$session_name" != "$dir_name" ]]; then
                 log "Sanitized session name: '$dir_name' → '$session_name'"
             fi

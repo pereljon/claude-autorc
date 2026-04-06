@@ -8,8 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Deliverables
 
-1. `~/Claude/claude-mux` — main startup script (Bash)
-2. `~/Library/LaunchAgents/com.user.claude-mux.plist` — triggers script at user login
+1. `claude-mux` — main script (Bash), installed to a bin directory in `$PATH`
+2. `com.user.claude-mux.plist` — LaunchAgent plist, installed to `~/Library/LaunchAgents/`
+3. `install.sh` — installer script
+4. `claude-mux-rc` — example config file template
 
 ## Architecture
 
@@ -27,7 +29,7 @@ The LaunchAgent runs the script at login with a 45-second startup delay for syst
 - **Logging**: all actions appended to `~/Claude/claude-mux.log` (UTC ISO 8601)
 - **Auto-gitignore**: optionally creates `.gitignore` with common dev exclusions (secrets, tokens, .env, IDE, build artifacts)
 - **Default permission mode**: optionally sets Claude's `permissions.defaultMode` per project via `.claude/settings.local.json`
-- **Tmux-aware sessions**: each session gets `--append-system-prompt` with its tmux session name, so Claude knows how to send slash commands (e.g. `/model`, `/compact`) to itself or other sessions via `tmux send-keys`
+- **Tmux-aware sessions**: each session gets `--append-system-prompt` with its tmux session name, so Claude knows how to send slash commands (e.g. `/model`, `/compact`) to itself via `tmux send-keys` (cross-session control available when `ALLOW_CROSS_SESSION_CONTROL=true`)
 
 ## Dependencies
 
@@ -39,21 +41,19 @@ The LaunchAgent runs the script at login with a 45-second startup delay for syst
 ## Commands
 
 ```bash
-# Dry run
-~/Claude/claude-mux --dry-run
+# Install
+./install.sh
 
-# Full run
-~/Claude/claude-mux
-
-# Check sessions
-tmux list-sessions
-
-# Install LaunchAgent
-cp com.user.claude-mux.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.user.claude-mux.plist
+# Usage
+claude-mux                       # start all sessions
+claude-mux project-name          # attach to a session
+claude-mux --status              # show session status
+claude-mux --dry-run             # preview actions without executing
+claude-mux --shutdown            # gracefully exit all Claude sessions
+claude-mux --restart             # shutdown then restart all sessions
 
 # Verify LaunchAgent
-launchctl list | grep claude-sessions
+launchctl list | grep claude-mux
 
 # Check logs
 tail -f ~/Claude/claude-mux.log
@@ -75,11 +75,11 @@ Always edit the repo copy first, then **ask before committing** — do not run `
 cp ~/Claude/development/claude-code-sessions/claude-mux ~/Claude/
 ```
 
-The plist and `claude-mux.example` follow the same pattern — edit in repo, copy to deploy.
+The plist and `claude-mux-rc` follow the same pattern — edit in repo, copy to deploy.
 
 ## Configuration file
 
-`~/.claude-mux` is the user config (not in this repo). A documented template is at `claude-mux.example`. Key variables:
+`~/.claude-mux-rc` is the user config (not in this repo). A documented template is at `claude-mux-rc`. Key variables:
 
 - `BASE_DIR` — root directory (default: `~/Claude`)
 - `AUTO_GIT_INIT` — run `git init` and create `.gitignore` in projects without a repo (default: `false`)

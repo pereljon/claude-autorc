@@ -1,4 +1,4 @@
-# Claude Auto Remote Control — project gitignore
+# claude-mux — project gitignore
 
 # Claude local settings
 .claude/settings.local.json
