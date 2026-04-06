@@ -3,7 +3,8 @@
 # Automatically creates persistent tmux sessions running Claude Code with
 # Remote Control for each project directory under ~/Claude/.
 
-# ── Configuration ─────────────────────────────────────────────────────────────
+# ── Defaults ──────────────────────────────────────────────────────────────────
+# Override any of these in ~/.claude-autorc
 
 # Root directory containing category and project directories.
 BASE_DIR="$HOME/Claude"
@@ -21,6 +22,13 @@ DEFAULT_PERMISSION_MODE="auto"
 # sessions via tmux send-keys. When false (default), sessions can only send
 # commands to themselves — safer, prevents one session affecting others.
 ALLOW_CROSS_SESSION_CONTROL=false
+
+# ── User config (overrides defaults above) ────────────────────────────────────
+
+if [[ -f "$HOME/.claude-autorc" ]]; then
+    # shellcheck source=/dev/null
+    source "$HOME/.claude-autorc"
+fi
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
