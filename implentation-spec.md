@@ -135,9 +135,11 @@ Writes the launch command to a temp script (`/tmp/claude-launch-XXXXXX.sh`) to a
 
 Launch command inside temp script:
 ```bash
-claude -c --rc --name '<session_name>' --append-system-prompt '<prompt>' 2>/dev/null || \
-claude --rc --name '<session_name>' --append-system-prompt '<prompt>'
+claude -c --remote-control --permission-mode auto --name '<session_name>' --append-system-prompt '<prompt>' 2>/dev/null || \
+claude --remote-control --permission-mode auto --name '<session_name>' --append-system-prompt '<prompt>'
 ```
+
+After sending the launch command, the script waits 5 seconds and checks for the workspace trust prompt. If found, it sends Enter to accept (option 1 is pre-selected). All managed directories are the user's own projects.
 
 ### AUTO_GITIGNORE template
 

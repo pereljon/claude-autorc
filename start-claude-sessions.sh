@@ -288,12 +288,21 @@ create_claude_session() {
 #!/bin/bash
 trap 'rm -f "${launch_script}"' EXIT
 export PATH="/opt/homebrew/bin:\$PATH"
-claude -c --rc --name '${session_name}' --append-system-prompt "${tmux_prompt}" 2>/dev/null || \
-claude --rc --name '${session_name}' --append-system-prompt "${tmux_prompt}"
+claude -c --remote-control --permission-mode auto --name '${session_name}' --append-system-prompt "${tmux_prompt}" 2>/dev/null || \
+claude --remote-control --permission-mode auto --name '${session_name}' --append-system-prompt "${tmux_prompt}"
 LAUNCH_EOF
     chmod +x "$launch_script"
 
     "$TMUX" send-keys -t "$session_name" "bash '${launch_script}'" Enter
+
+    # Auto-accept the workspace trust prompt if it appears.
+    # All directories managed by this script are the user's own projects.
+    # Option 1 is pre-selected (❯); just send Enter to confirm.
+    sleep 5
+    if "$TMUX" capture-pane -t "$session_name" -p 2>/dev/null | grep -q "trust"; then
+        log "Auto-accepting trust prompt for '$session_name'"
+        "$TMUX" send-keys -t "$session_name" "" Enter
+    fi
 
     sleep "$SLEEP_BETWEEN"
 }
