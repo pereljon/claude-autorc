@@ -274,10 +274,10 @@ In `--dry-run` mode, output goes to stdout only (not the log file).
 
 | Case | Handling |
 |------|----------|
-| No prior Claude session in directory | `claude -c` fails, `\|\|` falls back to `claude --rc --name <name>` |
+| No prior Claude session in directory | `claude -c` fails, `\|\|` falls back to `claude --remote-control --name <name>` |
 | Directory has no `.git` | Script runs `git init` before launching Claude (bypasses trust prompt) |
-| tmux session already exists | Skip, log, continue to next |
-| Claude exited but tmux session still alive | Script skips (tmux session exists); Claude is not re-launched |
+| tmux session already exists with claude running | Skip, log, continue to next |
+| Claude exited but tmux session still alive | Detect via process tree check; relaunch claude into existing session |
 | Category directory missing | Log warning, skip to next category |
 | No category directories found | Log warning, exit cleanly |
 | BASE_DIR does not exist | Created automatically (dry-run: exit cleanly with warning) |
@@ -343,8 +343,7 @@ launchctl load ~/Library/LaunchAgents/com.user.claude-sessions.plist
 launchctl list | grep claude-sessions
 
 # Check logs
-cat ~/Claude/launchagent-stdout.log
-cat ~/Claude/startup.log
+tail -f ~/Claude/claude-autorc.log
 
 # Unload for debugging
 launchctl unload ~/Library/LaunchAgents/com.user.claude-sessions.plist
@@ -358,7 +357,7 @@ Restart the Mac. After login, wait 60 seconds, then verify:
 tmux list-sessions
 ```
 
-All sessions should be present. Check `~/Claude/startup.log` for any errors.
+All sessions should be present. Check `~/Claude/claude-autorc.log` for any errors.
 
 ## Resolved Implementation Notes
 

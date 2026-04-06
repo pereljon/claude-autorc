@@ -85,6 +85,41 @@ On first run, `~/.claude-autorc` is created automatically with all settings comm
 
 Session names are derived from directory names: spaces become hyphens, non-alphanumeric characters (except hyphens) are replaced, and leading/trailing hyphens are stripped. Directories whose name sanitizes to empty are skipped with a log warning.
 
+## Troubleshooting
+
+### Sessions show "Not logged in · Run /login"
+
+This happens on first launch if the macOS keychain is locked (common when the script runs before the keychain is unlocked after login). Fix:
+
+```bash
+# Unlock the keychain in a regular terminal
+security unlock-keychain
+
+# Then complete auth in any one running session
+tmux attach -t <any-session>
+# Run /login and complete the browser flow
+```
+
+After completing auth once, kill and relaunch all sessions — they'll pick up the stored credential automatically.
+
+### Sessions not appearing in Claude Code Remote
+
+Sessions must be authenticated (not showing "Not logged in") and launched with `--remote-control`. After a clean authenticated launch, they should appear in the RC list within a few seconds.
+
+**Alternative:** Instead of passing `--remote-control` per session, you can enable RC globally for all interactive Claude Code sessions via `/config` inside any session. If you do this, the `--remote-control` flag in the script becomes redundant (but harmless).
+
+### Slash commands not available over Remote Control
+
+Most slash commands (e.g. `/model`, `/clear`) are currently not supported in RC sessions — they either fail with "not available over Remote Control" or get sent as plain text. This is a [known open issue](https://github.com/anthropics/claude-code/issues/30674).
+
+**Possible fix (unofficial, wiped on `claude` updates):** The feature is built and functional behind a flag called `tengu_bridge_slash_commands` that defaults to off. To enable it:
+
+```bash
+sed -i 's/tengu_bridge_slash_commands",!1/tengu_bridge_slash_commands",!0/g' "$(readlink -f $(which claude))"
+```
+
+This patches the bundled JS in the `claude` binary directly. Re-apply after each `brew upgrade claude`.
+
 ## Logs
 
 - `~/Claude/claude-autorc.log` — all script actions with UTC timestamps
