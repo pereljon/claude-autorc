@@ -17,8 +17,18 @@ DEFAULT_PERMISSION_MODE="auto"
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 BASE_DIR="$HOME/Claude"
-CATEGORIES=("work" "personal")
 SLEEP_BETWEEN=5
+
+# Discover category directories dynamically — any subdir of BASE_DIR
+# that doesn't start with '.' or '-'
+CATEGORIES=()
+for _dir in "$BASE_DIR"/*/; do
+    _dir="${_dir%/}"
+    _name="$(basename "$_dir")"
+    if [[ -d "$_dir" && "$_name" != .* && "$_name" != -* ]]; then
+        CATEGORIES+=("$_name")
+    fi
+done
 LOG_FILE="$BASE_DIR/startup.log"
 
 TMUX="/opt/homebrew/bin/tmux"
