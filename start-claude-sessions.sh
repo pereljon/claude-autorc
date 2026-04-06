@@ -14,6 +14,11 @@ AUTO_GITIGNORE=true
 # Valid values: "" (disabled), "default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"
 DEFAULT_PERMISSION_MODE="auto"
 
+# When true, each Claude session is told it can send slash commands to OTHER
+# sessions via tmux send-keys. When false (default), sessions can only send
+# commands to themselves — safer, prevents one session affecting others.
+ALLOW_CROSS_SESSION_CONTROL=false
+
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 BASE_DIR="$HOME/Claude"
@@ -230,7 +235,11 @@ create_claude_session() {
 
     # Build system prompt; use a variable to avoid quoting complexity in send-keys
     local tmux_prompt
-    tmux_prompt="You are running inside tmux session '${session_name}'. You can send slash commands to yourself or any other Claude session via: /opt/homebrew/bin/tmux send-keys -t <session-name> \"/command args\" Enter. To list all sessions: /opt/homebrew/bin/tmux list-sessions. To find your own session name: /opt/homebrew/bin/tmux display-message -p '#S'.${GITHUB_SSH_INFO}"
+    if [[ "$ALLOW_CROSS_SESSION_CONTROL" == "true" ]]; then
+        tmux_prompt="You are running inside tmux session '${session_name}'. You can send slash commands to yourself or any other Claude session via: /opt/homebrew/bin/tmux send-keys -t <session-name> \"/command args\" Enter. To list all sessions: /opt/homebrew/bin/tmux list-sessions. To find your own session name: /opt/homebrew/bin/tmux display-message -p '#S'.${GITHUB_SSH_INFO}"
+    else
+        tmux_prompt="You are running inside tmux session '${session_name}'. You can send slash commands to yourself via: /opt/homebrew/bin/tmux send-keys -t '${session_name}' \"/command args\" Enter. To find your own session name: /opt/homebrew/bin/tmux display-message -p '#S'.${GITHUB_SSH_INFO}"
+    fi
 
     # Write the launch command to a temp script to avoid quoting complexity.
     # A trap inside the script guarantees cleanup even if claude exits unexpectedly.

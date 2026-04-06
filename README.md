@@ -69,20 +69,28 @@ Edit the variables at the top of `start-claude-sessions.sh`:
 |----------|---------|-------------|
 | `AUTO_GITIGNORE` | `true` | Create `.gitignore` with common dev exclusions (secrets, tokens, .env, IDE files, build artifacts) if one doesn't exist |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set Claude's `permissions.defaultMode` in each project. Valid: `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`. Set to `""` to disable. |
+| `ALLOW_CROSS_SESSION_CONTROL` | `false` | Allow Claude sessions to send slash commands to other sessions via tmux. When `false`, sessions can only send commands to themselves. Enable for multi-agent orchestration workflows. |
 
-Both settings are idempotent — they skip projects that already have the relevant files configured.
+`AUTO_GITIGNORE` and `DEFAULT_PERMISSION_MODE` are idempotent — they skip projects that already have the relevant files configured.
 
 ## Session Awareness
 
 Each Claude session is launched with `--append-system-prompt` giving it context about its environment:
 
-**Tmux identity** — Claude knows its session name and can send slash commands to itself or any other session:
+**Tmux identity** — Claude knows its session name and can send slash commands to itself:
 
 ```bash
-# Claude can run this autonomously to switch its own model:
+# Claude can run this to switch its own model:
 /opt/homebrew/bin/tmux send-keys -t project-a "/model sonnet" Enter
 
-# Or compact another session:
+# Or compact itself:
+/opt/homebrew/bin/tmux send-keys -t project-a "/compact" Enter
+```
+
+By default, sessions can only send commands to themselves. Set `ALLOW_CROSS_SESSION_CONTROL=true` to let sessions send commands to other sessions — useful for multi-agent orchestration but increases blast radius:
+
+```bash
+# With cross-session control enabled, one session can instruct another:
 /opt/homebrew/bin/tmux send-keys -t project-b "/compact" Enter
 
 # List all sessions:
