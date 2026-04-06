@@ -184,6 +184,35 @@ PYEOF
     fi
 }
 
+detect_github_ssh_accounts() {
+    # Parses ~/.ssh/config for GitHub SSH host aliases (Host github.com-*)
+    # and sets GITHUB_SSH_INFO to a prompt-ready string, or empty if none found.
+    GITHUB_SSH_INFO=""
+    local ssh_config="$HOME/.ssh/config"
+    [[ ! -f "$ssh_config" ]] && return
+
+    local accounts=()
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^[Hh]ost[[:space:]]+github\.com-(.+) ]]; then
+            accounts+=("${BASH_REMATCH[1]}")
+        fi
+    done < "$ssh_config"
+
+    [[ "${#accounts[@]}" -eq 0 ]] && return
+
+    local parts=()
+    for account in "${accounts[@]}"; do
+        parts+=("${account} (git@github.com-${account})")
+    done
+
+    # Join with ", "
+    local joined
+    printf -v joined '%s, ' "${parts[@]}"
+    joined="${joined%, }"
+
+    GITHUB_SSH_INFO=" GitHub SSH accounts configured in ~/.ssh/config: ${joined}. Use the host alias as the git remote, e.g. git clone git@github.com-${accounts[0]}:org/repo.git"
+}
+
 create_claude_session() {
     local session_name="$1"
     local working_dir="$2"
@@ -201,7 +230,7 @@ create_claude_session() {
 
     # Build system prompt; use a variable to avoid quoting complexity in send-keys
     local tmux_prompt
-    tmux_prompt="You are running inside tmux session '${session_name}'. You can send slash commands to yourself or any other Claude session via: /opt/homebrew/bin/tmux send-keys -t <session-name> \"/command args\" Enter. To list all sessions: /opt/homebrew/bin/tmux list-sessions. To find your own session name: /opt/homebrew/bin/tmux display-message -p '#S'."
+    tmux_prompt="You are running inside tmux session '${session_name}'. You can send slash commands to yourself or any other Claude session via: /opt/homebrew/bin/tmux send-keys -t <session-name> \"/command args\" Enter. To list all sessions: /opt/homebrew/bin/tmux list-sessions. To find your own session name: /opt/homebrew/bin/tmux display-message -p '#S'.${GITHUB_SSH_INFO}"
 
     # Write the launch command to a temp script to avoid quoting complexity.
     # A trap inside the script guarantees cleanup even if claude exits unexpectedly.
@@ -285,6 +314,9 @@ migrate_stray_sessions() {
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 log "=== start-claude-sessions.sh starting (dry-run=${DRY_RUN}) ==="
+
+detect_github_ssh_accounts
+[[ -n "$GITHUB_SSH_INFO" ]] && log "Detected GitHub SSH accounts:${GITHUB_SSH_INFO}"
 
 if [[ "${#CATEGORIES[@]}" -eq 0 ]]; then
     log "WARN: No category directories found under $BASE_DIR — nothing to do"
