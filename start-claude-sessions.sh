@@ -189,9 +189,72 @@ LAUNCH_EOF
     sleep "$SLEEP_BETWEEN"
 }
 
+# ── Migrate stray Claude sessions ─────────────────────────────────────────────
+
+migrate_stray_sessions() {
+    # Find claude CLI processes not running inside a tmux session,
+    # whose working directory is under a managed category directory.
+    # SIGTERMs them so the main loop can resume them inside tmux via claude -c.
+
+    local managed_dirs=()
+    for cat in "${CATEGORIES[@]}"; do
+        managed_dirs+=("$BASE_DIR/$cat")
+    done
+
+    # Get PIDs of all claude CLI processes
+    local pids
+    pids=$(pgrep -f "$CLAUDE" 2>/dev/null) || return 0
+
+    while IFS= read -r pid; do
+        [[ -z "$pid" ]] && continue
+
+        # Check if this process has tmux anywhere in its ancestor chain
+        local check_pid="$pid"
+        local in_tmux=false
+        while [[ "$check_pid" -gt 1 ]]; do
+            local parent_cmd
+            parent_cmd=$(ps -o comm= -p "$check_pid" 2>/dev/null) || break
+            if [[ "$parent_cmd" == tmux* ]]; then
+                in_tmux=true
+                break
+            fi
+            check_pid=$(ps -o ppid= -p "$check_pid" 2>/dev/null | tr -d ' ') || break
+        done
+
+        [[ "$in_tmux" == "true" ]] && continue
+
+        # Get working directory of the process
+        local cwd
+        cwd=$(lsof -p "$pid" -a -d cwd -Fn 2>/dev/null | tail -1 | cut -c2-)
+        [[ -z "$cwd" ]] && continue
+
+        # Check if cwd is directly under a managed category directory
+        local is_managed=false
+        for managed in "${managed_dirs[@]}"; do
+            # Match category dir itself or one level deep (project dirs)
+            if [[ "$cwd" == "$managed" || "$cwd" == "$managed/"* ]]; then
+                is_managed=true
+                break
+            fi
+        done
+
+        [[ "$is_managed" != "true" ]] && continue
+
+        log "Migrating stray claude session (pid=$pid, cwd=$cwd) → will resume in tmux"
+        if [[ "$DRY_RUN" != "true" ]]; then
+            kill -TERM "$pid" 2>/dev/null
+        fi
+    done <<< "$pids"
+
+    # Brief pause for processes to exit cleanly before we create tmux sessions
+    [[ "$DRY_RUN" != "true" ]] && sleep 2
+}
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 log "=== start-claude-sessions.sh starting (dry-run=${DRY_RUN}) ==="
+
+migrate_stray_sessions
 
 for CATEGORY in "${CATEGORIES[@]}"; do
     CATEGORY_DIR="$BASE_DIR/$CATEGORY"
