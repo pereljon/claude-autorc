@@ -1,8 +1,8 @@
 # claude-mux — Claude Code Multiplexer
 
-Persistent Claude Code sessions for all your projects.
+Persistent Claude Code sessions for all your projects — accessible from anywhere via the Claude mobile app.
 
-A shell script and macOS LaunchAgent that automatically creates and maintains Claude Code sessions in tmux for every project directory under `~/Claude/` (configurable via `~/.claude-mux`).
+A shell script and macOS LaunchAgent that automatically creates and maintains Claude Code sessions in tmux for every project directory under `~/Claude/`. Because the sessions are persistent, Claude Code's Remote Control feature gives you full access to all your projects from the Claude iOS/Android app.
 
 ## What It Does
 
