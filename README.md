@@ -9,7 +9,7 @@ On login (or manual run), the script:
 1. Scans all category directories under `~/Claude/` (any subdir not starting with `.` or `-`)
 2. Migrates any Claude Code processes already running outside tmux in managed directories — SIGTERMs them so they resume cleanly inside tmux via `claude -c`
 3. Optionally initializes git repos where missing (disabled by default, enable via `AUTO_GIT_INIT`)
-4. Configures each project with a `.gitignore` and `permissions.defaultMode` if not already set
+4. Configures each project with a `.gitignore` and sets `permissions.defaultMode` to `DEFAULT_PERMISSION_MODE` (default: `auto`)
 5. Creates a tmux session per project with Claude running in RC mode
 6. Attempts to resume the last conversation (`claude -c`), falling back to a fresh start
 
