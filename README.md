@@ -6,10 +6,11 @@ A shell script and macOS LaunchAgent that automatically creates persistent tmux 
 
 On login (or manual run), the script:
 
-1. Scans `~/Claude/{work,personal}/` for project subdirectories
-2. Initializes git repos where missing (bypasses Claude's trust prompt)
-3. Creates a tmux session per project with Claude running in RC mode
-4. Attempts to resume the last session (`claude -c`), falling back to a fresh start
+1. Scans all category directories under `~/Claude/` (any subdir not starting with `.` or `-`)
+2. Migrates any Claude Code processes already running outside tmux in managed directories — SIGTERMs them so they resume cleanly inside tmux
+3. Initializes git repos where missing (bypasses Claude's trust prompt)
+4. Creates a tmux session per project with Claude running in RC mode
+5. Attempts to resume the last session (`claude -c`), falling back to a fresh start
 
 ## Requirements
 
@@ -69,17 +70,26 @@ Each Claude session is launched with `--append-system-prompt` containing its tmu
 
 Claude sessions are aware of this capability and can use it autonomously when asked.
 
+## Session Migration
+
+When the script runs, it finds any Claude Code CLI processes already running outside of tmux whose working directory is under a managed category. It SIGTERMs them gracefully — conversation state is persisted to disk, so `claude -c` in the new tmux session resumes exactly where the session left off. Any terminal window where Claude was running will show it exited; attach to the tmux session to continue:
+
+```bash
+tmux attach -t project-name
+```
+
 ## Directory Structure
 
 ```
 ~/Claude/
-├── work/
+├── work/              # category (any top-level dir not starting with . or -)
 │   ├── project-a/
 │   ├── project-b/
-│   └── -archived/        # excluded (starts with -)
-└── personal/
-    ├── project-c/
-    └── .hidden/           # excluded (starts with .)
+│   └── -archived/     # excluded (starts with -)
+├── personal/          # category
+│   ├── project-c/
+│   └── .hidden/       # excluded (starts with .)
+└── -old/              # excluded (starts with -)
 ```
 
 ## Logs

@@ -18,17 +18,6 @@ DEFAULT_PERMISSION_MODE="auto"
 
 BASE_DIR="$HOME/Claude"
 SLEEP_BETWEEN=5
-
-# Discover category directories dynamically — any subdir of BASE_DIR
-# that doesn't start with '.' or '-'
-CATEGORIES=()
-for _dir in "$BASE_DIR"/*/; do
-    _dir="${_dir%/}"
-    _name="$(basename "$_dir")"
-    if [[ -d "$_dir" && "$_name" != .* && "$_name" != -* ]]; then
-        CATEGORIES+=("$_name")
-    fi
-done
 LOG_FILE="$BASE_DIR/startup.log"
 
 TMUX="/opt/homebrew/bin/tmux"
@@ -42,6 +31,28 @@ DRY_RUN=false
 if [[ "${1:-}" == "--dry-run" ]]; then
     DRY_RUN=true
 fi
+
+# ── Ensure base directory exists ───────────────────────────────────────────────
+
+if [[ ! -d "$BASE_DIR" ]]; then
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] WARN: $BASE_DIR does not exist — nothing to do"
+        exit 0
+    fi
+    mkdir -p "$BASE_DIR"
+fi
+
+# ── Discover category directories ─────────────────────────────────────────────
+# Any subdir of BASE_DIR not starting with '.' or '-' is treated as a category.
+
+CATEGORIES=()
+for _dir in "$BASE_DIR"/*/; do
+    _dir="${_dir%/}"
+    _name="$(basename "$_dir")"
+    if [[ -d "$_dir" && "$_name" != .* && "$_name" != -* ]]; then
+        CATEGORIES+=("$_name")
+    fi
+done
 
 # ── Startup delay (LaunchAgent only, skipped in dry-run) ──────────────────────
 
@@ -151,13 +162,23 @@ setup_default_mode() {
 
     mkdir -p "$dir/.claude"
     if [[ -f "$settings_file" ]]; then
-        /usr/bin/python3 - "$settings_file" "$DEFAULT_PERMISSION_MODE" << 'PYEOF'
+        if ! /usr/bin/python3 - "$settings_file" "$DEFAULT_PERMISSION_MODE" >> "$LOG_FILE" 2>&1 << 'PYEOF'
 import json, sys
-with open(sys.argv[1]) as f: d = json.load(f)
+try:
+    with open(sys.argv[1]) as f: d = json.load(f)
+except (json.JSONDecodeError, OSError) as e:
+    print(f"ERROR reading {sys.argv[1]}: {e}", file=sys.stderr)
+    sys.exit(1)
 d.setdefault('permissions', {})['defaultMode'] = sys.argv[2]
-with open(sys.argv[1], 'w') as f: json.dump(d, f, indent=2)
-print('')
+try:
+    with open(sys.argv[1], 'w') as f: json.dump(d, f, indent=2)
+except OSError as e:
+    print(f"ERROR writing {sys.argv[1]}: {e}", file=sys.stderr)
+    sys.exit(1)
 PYEOF
+        then
+            log "WARN: Failed to merge defaultMode into $settings_file — skipping"
+        fi
     else
         printf '{"permissions":{"defaultMode":"%s"}}\n' "$DEFAULT_PERMISSION_MODE" > "$settings_file"
     fi
@@ -182,15 +203,16 @@ create_claude_session() {
     local tmux_prompt
     tmux_prompt="You are running inside tmux session '${session_name}'. You can send slash commands to yourself or any other Claude session via: /opt/homebrew/bin/tmux send-keys -t <session-name> \"/command args\" Enter. To list all sessions: /opt/homebrew/bin/tmux list-sessions. To find your own session name: /opt/homebrew/bin/tmux display-message -p '#S'."
 
-    # Write the launch command to a temp script to avoid quoting complexity
+    # Write the launch command to a temp script to avoid quoting complexity.
+    # A trap inside the script guarantees cleanup even if claude exits unexpectedly.
     local launch_script
     launch_script=$(mktemp /tmp/claude-launch-XXXXXX.sh)
     cat > "$launch_script" << LAUNCH_EOF
 #!/bin/bash
+trap 'rm -f "${launch_script}"' EXIT
 export PATH="/opt/homebrew/bin:\$PATH"
 claude -c --rc --name '${session_name}' --append-system-prompt "${tmux_prompt}" 2>/dev/null || \
 claude --rc --name '${session_name}' --append-system-prompt "${tmux_prompt}"
-rm -f "${launch_script}"
 LAUNCH_EOF
     chmod +x "$launch_script"
 
@@ -200,25 +222,27 @@ LAUNCH_EOF
 }
 
 # ── Migrate stray Claude sessions ─────────────────────────────────────────────
+# Finds claude CLI processes not running inside tmux whose cwd is under a
+# managed category directory, SIGTERMs them, then lets the main loop resume
+# them inside tmux via claude -c.
 
 migrate_stray_sessions() {
-    # Find claude CLI processes not running inside a tmux session,
-    # whose working directory is under a managed category directory.
-    # SIGTERMs them so the main loop can resume them inside tmux via claude -c.
+    [[ "$DRY_RUN" == "true" ]] && return
 
     local managed_dirs=()
     for cat in "${CATEGORIES[@]}"; do
         managed_dirs+=("$BASE_DIR/$cat")
     done
 
-    # Get PIDs of all claude CLI processes
     local pids
     pids=$(pgrep -f "$CLAUDE" 2>/dev/null) || return 0
+
+    local found_any=false
 
     while IFS= read -r pid; do
         [[ -z "$pid" ]] && continue
 
-        # Check if this process has tmux anywhere in its ancestor chain
+        # Walk the process ancestor chain looking for tmux
         local check_pid="$pid"
         local in_tmux=false
         while [[ "$check_pid" -gt 1 ]]; do
@@ -233,15 +257,14 @@ migrate_stray_sessions() {
 
         [[ "$in_tmux" == "true" ]] && continue
 
-        # Get working directory of the process
+        # Get working directory — filter for 'n' (name) lines from lsof -Fn output
         local cwd
-        cwd=$(lsof -p "$pid" -a -d cwd -Fn 2>/dev/null | tail -1 | cut -c2-)
+        cwd=$(lsof -p "$pid" -a -d cwd -Fn 2>/dev/null | grep '^n' | cut -c2-)
         [[ -z "$cwd" ]] && continue
 
-        # Check if cwd is directly under a managed category directory
+        # Migrate if cwd is at or anywhere under a managed category directory
         local is_managed=false
         for managed in "${managed_dirs[@]}"; do
-            # Match category dir itself or one level deep (project dirs)
             if [[ "$cwd" == "$managed" || "$cwd" == "$managed/"* ]]; then
                 is_managed=true
                 break
@@ -251,18 +274,23 @@ migrate_stray_sessions() {
         [[ "$is_managed" != "true" ]] && continue
 
         log "Migrating stray claude session (pid=$pid, cwd=$cwd) → will resume in tmux"
-        if [[ "$DRY_RUN" != "true" ]]; then
-            kill -TERM "$pid" 2>/dev/null
-        fi
+        kill -TERM "$pid" 2>/dev/null
+        found_any=true
     done <<< "$pids"
 
-    # Brief pause for processes to exit cleanly before we create tmux sessions
-    [[ "$DRY_RUN" != "true" ]] && sleep 2
+    # Wait for terminated processes to exit cleanly before creating tmux sessions
+    [[ "$found_any" == "true" ]] && sleep 2
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 log "=== start-claude-sessions.sh starting (dry-run=${DRY_RUN}) ==="
+
+if [[ "${#CATEGORIES[@]}" -eq 0 ]]; then
+    log "WARN: No category directories found under $BASE_DIR — nothing to do"
+    log "=== start-claude-sessions.sh complete ==="
+    exit 0
+fi
 
 migrate_stray_sessions
 
