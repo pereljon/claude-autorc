@@ -9,8 +9,14 @@ On login (or manual run), the script:
 1. Scans all category directories under `~/Claude/` (any subdir not starting with `.` or `-`)
 2. Migrates any Claude Code processes already running outside tmux in managed directories — SIGTERMs them so they resume cleanly inside tmux
 3. Initializes git repos where missing (bypasses Claude's trust prompt)
-4. Creates a tmux session per project with Claude running in RC mode
-5. Attempts to resume the last session (`claude -c`), falling back to a fresh start
+4. Configures each project with a `.gitignore` and `permissions.defaultMode` if not already set
+5. Creates a tmux session per project with Claude running in RC mode
+6. Attempts to resume the last session (`claude -c`), falling back to a fresh start
+
+Each Claude session receives a system prompt at startup telling it:
+- Its own tmux session name
+- How to send slash commands to itself or other sessions via `tmux send-keys`
+- Which GitHub SSH accounts are configured in `~/.ssh/config`
 
 ## Requirements
 
@@ -21,23 +27,34 @@ On login (or manual run), the script:
 ## Usage
 
 ```bash
-# Preview what would happen
-./start-claude-sessions.sh --dry-run
+# Preview what would happen (no changes made)
+~/Claude/start-claude-sessions.sh --dry-run
 
 # Run it
-./start-claude-sessions.sh
+~/Claude/start-claude-sessions.sh
 
 # Check running sessions
 tmux list-sessions
+
+# Attach to a session
+tmux attach -t project-name
 ```
 
 ## Install as LaunchAgent
 
+The LaunchAgent runs the script automatically at login with a 45-second startup delay to allow system services to initialize.
+
+**Before installing**, edit `com.user.claude-sessions.plist` and replace `/Users/jonathan` with your actual home directory path — `~` does not expand in `ProgramArguments`.
+
 ```bash
-# Copy the plist (runs automatically at login)
+# Copy the script to ~/Claude/
+cp start-claude-sessions.sh ~/Claude/
+chmod +x ~/Claude/start-claude-sessions.sh
+
+# Edit the plist to replace /Users/jonathan with your home path, then:
 cp com.user.claude-sessions.plist ~/Library/LaunchAgents/
 
-# Load it now
+# Load it now (or it will load automatically on next login)
 launchctl load ~/Library/LaunchAgents/com.user.claude-sessions.plist
 
 # Verify
@@ -55,24 +72,34 @@ Edit the variables at the top of `start-claude-sessions.sh`:
 
 Both settings are idempotent — they skip projects that already have the relevant files configured.
 
-## Cross-Session Control
+## Session Awareness
 
-Each Claude session is launched with `--append-system-prompt` containing its tmux session name. This means any session can send slash commands to itself or other sessions:
+Each Claude session is launched with `--append-system-prompt` giving it context about its environment:
+
+**Tmux identity** — Claude knows its session name and can send slash commands to itself or any other session:
 
 ```bash
-# From any Claude session (or terminal):
+# Claude can run this autonomously to switch its own model:
 /opt/homebrew/bin/tmux send-keys -t project-a "/model sonnet" Enter
+
+# Or compact another session:
 /opt/homebrew/bin/tmux send-keys -t project-b "/compact" Enter
 
-# List all sessions
+# List all sessions:
 /opt/homebrew/bin/tmux list-sessions
 ```
 
-Claude sessions are aware of this capability and can use it autonomously when asked.
+**GitHub SSH accounts** — The script reads `~/.ssh/config` at startup and injects any `Host github.com-*` entries into each session's system prompt. Claude will know which accounts are available and use the correct SSH host alias for git operations:
+
+```
+# Example of what Claude learns:
+GitHub SSH accounts: pereljon (git@github.com-pereljon), work (git@github.com-work)
+Use the host alias as the git remote, e.g. git clone git@github.com-pereljon:org/repo.git
+```
 
 ## Session Migration
 
-When the script runs, it finds any Claude Code CLI processes already running outside of tmux whose working directory is under a managed category. It SIGTERMs them gracefully — conversation state is persisted to disk, so `claude -c` in the new tmux session resumes exactly where the session left off. Any terminal window where Claude was running will show it exited; attach to the tmux session to continue:
+When the script runs, it finds any Claude Code CLI processes already running outside of tmux whose working directory is under a managed category. It SIGTERMs them gracefully — conversation state is persisted to disk, so `claude -c` in the new tmux session resumes exactly where the session left off. The old terminal window will show Claude exited; attach to the tmux session to continue:
 
 ```bash
 tmux attach -t project-name
