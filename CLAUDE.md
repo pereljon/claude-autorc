@@ -82,8 +82,7 @@ The plist and `claude-autorc.example` follow the same pattern — edit in repo, 
 `~/.claude-autorc` is the user config (not in this repo). A documented template is at `claude-autorc.example`. Key variables:
 
 - `BASE_DIR` — root directory (default: `~/Claude`)
-- `AUTO_GIT_INIT` — run `git init` in projects without a repo (default: `false`)
-- `AUTO_GITIGNORE` — create `.gitignore` in each project (default: `true`)
+- `AUTO_GIT_INIT` — run `git init` and create `.gitignore` in projects without a repo (default: `false`)
 - `DEFAULT_PERMISSION_MODE` — Claude permission mode per project (default: `auto`)
 - `ALLOW_CROSS_SESSION_CONTROL` — allow sessions to send commands to each other (default: `false`)
 

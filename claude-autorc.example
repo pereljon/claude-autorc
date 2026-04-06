@@ -6,14 +6,10 @@
 # Default: $HOME/Claude
 #BASE_DIR="$HOME/Claude"
 
-# When true, run git init in project directories that don't have a git repo.
+# When true, run git init and create a .gitignore in project directories
+# that don't have a git repo.
 # Default: false
 #AUTO_GIT_INIT=false
-
-# When true, create a .gitignore with common development exclusions
-# if one does not already exist in the project directory.
-# Default: true
-#AUTO_GITIGNORE=true
 
 # Set Claude's permissions.defaultMode for each project via .claude/settings.local.json.
 # Valid values: "" (disabled), "default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"

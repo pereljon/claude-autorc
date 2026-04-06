@@ -9,7 +9,7 @@ On login (or manual run), the script:
 1. Scans all category directories under `~/Claude/` (any subdir not starting with `.` or `-`)
 2. Migrates any Claude Code processes already running outside tmux in managed directories — SIGTERMs them so they resume cleanly inside tmux via `claude -c`
 3. Optionally initializes git repos where missing (disabled by default, enable via `AUTO_GIT_INIT`)
-4. Configures each project with a `.gitignore` and sets `permissions.defaultMode` to `DEFAULT_PERMISSION_MODE` (default: `auto`)
+4. Optionally creates a `.gitignore` in each project (when `AUTO_GIT_INIT` is enabled) and sets `permissions.defaultMode` to `DEFAULT_PERMISSION_MODE` (default: `auto`)
 5. Creates a tmux session per project with Claude running in RC mode
 6. Attempts to resume the last conversation (`claude -c`), falling back to a fresh start
 
@@ -65,8 +65,7 @@ On first run, `~/.claude-autorc` is created automatically with all settings comm
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `BASE_DIR` | `$HOME/Claude` | Root directory containing category and project subdirectories |
-| `AUTO_GIT_INIT` | `false` | Run `git init` in project directories that don't have a git repo |
-| `AUTO_GITIGNORE` | `true` | Create `.gitignore` with common dev exclusions (secrets, tokens, .env, IDE files, build artifacts) if one doesn't exist |
+| `AUTO_GIT_INIT` | `false` | Run `git init` and create a `.gitignore` in project directories that don't have a git repo |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set Claude's `permissions.defaultMode` in each project. Valid: `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`. Set to `""` to disable. |
 | `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions can send slash commands to other sessions via tmux — useful for multi-agent orchestration. When `false`, sessions can only command themselves. |
 

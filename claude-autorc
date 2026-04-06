@@ -9,13 +9,10 @@
 # Root directory containing category and project directories.
 BASE_DIR="$HOME/Claude"
 
-# When true, run git init in project directories that don't have a .git repo.
-# Disabled by default — enable if your workflow requires git in every project.
+# When true, run git init in project directories that don't have a .git repo,
+# and create a .gitignore with common dev exclusions if one doesn't exist.
+# Disabled by default.
 AUTO_GIT_INIT=false
-
-# When true, create a .gitignore with common development exclusions
-# if one does not already exist in the project directory
-AUTO_GITIGNORE=true
 
 # When set to a valid mode, create/update .claude/settings.local.json
 # to set permissions.defaultMode for the project.
@@ -74,14 +71,10 @@ if [[ ! -f "$HOME/.claude-autorc" ]]; then
 # Default: $HOME/Claude
 #BASE_DIR="$HOME/Claude"
 
-# When true, run git init in project directories that don't have a .git repo.
+# When true, run git init in project directories that don't have a .git repo,
+# and create a .gitignore with common dev exclusions if one doesn't exist.
 # Default: false
 #AUTO_GIT_INIT=false
-
-# When true, create a .gitignore with common development exclusions
-# if one does not already exist in the project directory.
-# Default: true
-#AUTO_GITIGNORE=true
 
 # Set Claude's permissions.defaultMode for each project via .claude/settings.local.json.
 # Valid values: "" (disabled), "default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"
@@ -204,7 +197,7 @@ ensure_git_repo() {
 
 setup_gitignore() {
     local dir="$1"
-    [[ "$AUTO_GITIGNORE" != "true" ]] && return
+    [[ "$AUTO_GIT_INIT" != "true" ]] && return
 
     if [[ -f "$dir/.gitignore" ]]; then
         log "Gitignore already exists in $dir, skipping"

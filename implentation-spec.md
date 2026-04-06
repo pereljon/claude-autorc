@@ -35,8 +35,7 @@ On first run, the script creates `~/.claude-autorc` with all settings commented 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `BASE_DIR` | `$HOME/Claude` | Root directory containing category and project directories |
-| `AUTO_GIT_INIT` | `false` | Run `git init` in project directories that don't have a git repo |
-| `AUTO_GITIGNORE` | `true` | Create `.gitignore` with common dev exclusions if one doesn't exist |
+| `AUTO_GIT_INIT` | `false` | Run `git init` and create a `.gitignore` in project directories that don't have a git repo |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set `permissions.defaultMode` in `.claude/settings.local.json` per project. Valid: `""` (disabled), `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions` |
 | `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions are told they can send slash commands to other sessions via tmux. When `false`, sessions can only send commands to themselves. |
 
@@ -61,7 +60,7 @@ The script sources `~/.claude-autorc` after setting defaults, so any variable se
 ### Startup Sequence
 
 ```
-1. Set defaults (BASE_DIR, AUTO_GIT_INIT, AUTO_GITIGNORE, DEFAULT_PERMISSION_MODE, ALLOW_CROSS_SESSION_CONTROL)
+1. Set defaults (BASE_DIR, AUTO_GIT_INIT, DEFAULT_PERMISSION_MODE, ALLOW_CROSS_SESSION_CONTROL)
 2. Create ~/.claude-autorc with commented defaults if it doesn't exist
 3. Source ~/.claude-autorc (user overrides apply from here on)
 4. Parse --dry-run flag
@@ -111,7 +110,7 @@ Runs `git init` if `$dir/.git` does not exist. Logged and skipped in dry-run.
 
 #### setup_gitignore(dir)
 
-If `AUTO_GITIGNORE=true` and no `.gitignore` exists, creates one with common exclusions (secrets, credentials, Claude settings, OS, IDE, dependencies, build artifacts). Skips if file already exists.
+If `AUTO_GIT_INIT=true` and no `.gitignore` exists, creates one with common exclusions (secrets, credentials, Claude settings, OS, IDE, dependencies, build artifacts). Skips if file already exists.
 
 #### setup_default_mode(dir)
 
@@ -142,7 +141,7 @@ claude --remote-control --permission-mode auto --name '<session_name>' --append-
 
 After sending the launch command, the script waits 5 seconds and checks for the workspace trust prompt. If found, it sends Enter to accept (option 1 is pre-selected). All managed directories are the user's own projects.
 
-### AUTO_GITIGNORE template
+### AUTO_GIT_INIT gitignore template
 
 ```
 # Secrets and credentials
