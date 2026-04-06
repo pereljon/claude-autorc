@@ -275,7 +275,7 @@ create_claude_session() {
     if [[ "$ALLOW_CROSS_SESSION_CONTROL" == "true" ]]; then
         tmux_prompt="You are running inside tmux session '${session_name}'. You can send slash commands to yourself or any other Claude session via: /opt/homebrew/bin/tmux send-keys -t <session-name> \"/command args\" Enter. To list all sessions: /opt/homebrew/bin/tmux list-sessions. To find your own session name: /opt/homebrew/bin/tmux display-message -p '#S'.${GITHUB_SSH_INFO}"
     else
-        tmux_prompt="You are running inside tmux session '${session_name}'. You can send slash commands to yourself via: /opt/homebrew/bin/tmux send-keys -t '${session_name}' \"/command args\" Enter. To find your own session name: /opt/homebrew/bin/tmux display-message -p '#S'.${GITHUB_SSH_INFO}"
+        tmux_prompt="You are running inside tmux session '${session_name}'. You can send slash commands to yourself via: /opt/homebrew/bin/tmux send-keys -t '${session_name}' \"/command args\" Enter.${GITHUB_SSH_INFO}"
     fi
 
     # Write the launch command to a temp script to avoid quoting complexity.
