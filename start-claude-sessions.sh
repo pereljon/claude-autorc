@@ -111,6 +111,8 @@ log() {
         echo "$msg"
     else
         echo "$msg" >> "$LOG_FILE"
+        # Mirror to stdout when running interactively in a terminal
+        [[ -t 1 ]] && echo "$msg"
     fi
 }
 
