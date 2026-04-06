@@ -12,7 +12,7 @@ On login (or manual run), the script:
 2. Migrates any Claude Code processes already running outside tmux in managed directories — SIGTERMs them so they resume cleanly inside tmux via `claude -c`
 3. Optionally initializes git repos where missing (disabled by default, enable via `AUTO_GIT_INIT`)
 4. Optionally creates a `.gitignore` in each project (when `AUTO_GIT_INIT` is enabled) and sets `permissions.defaultMode` to `DEFAULT_PERMISSION_MODE` (default: `auto`)
-5. Creates a persistent tmux session per project with Claude Code running
+5. Creates a persistent tmux session per project with Claude Code running, with Remote Control enabled
 6. Attempts to resume the last conversation (`claude -c`), falling back to a fresh start
 
 Each Claude session is injected with its tmux session name (so it can send slash commands like `/model` and `/compact` to itself), and any GitHub SSH accounts found in `~/.ssh/config` (so it knows which accounts are available for git operations).
