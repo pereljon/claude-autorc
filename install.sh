@@ -179,7 +179,8 @@ if [[ "$INSTALL_LAUNCHAGENT" == "true" ]]; then
         fi
 
         echo "Installing LaunchAgent to $PLIST_DEST..."
-        cp "$PLIST_SRC" "$PLIST_DEST"
+        # Template the binary path into the plist so it matches --bin-dir
+        sed "s|exec \"\\\$HOME/Claude/claude-mux\"|exec \"$BIN_DIR/claude-mux\"|" "$PLIST_SRC" > "$PLIST_DEST"
         launchctl bootstrap "gui/$(id -u)" "$PLIST_DEST"
         echo "LaunchAgent installed and loaded."
     fi

@@ -121,7 +121,7 @@ If `DEFAULT_PERMISSION_MODE` is non-empty, writes or merges `permissions.default
 
 #### create_claude_session(session_name, working_dir)
 
-Skips if a tmux session with that name already exists.
+Skips if a tmux session with that name already exists AND Claude is running in it. If the session exists but Claude has exited, relaunches Claude into the existing session.
 
 Builds a system prompt based on `ALLOW_CROSS_SESSION_CONTROL`:
 
@@ -338,9 +338,12 @@ With a Claude process running outside tmux in a managed directory, run the scrip
 ### Phase 5: LaunchAgent
 
 ```bash
-# Install
+# Install (preferred)
+./install.sh
+
+# Or manually:
 cp com.user.claude-mux.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.user.claude-mux.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.user.claude-mux.plist
 
 # Verify
 launchctl list | grep claude-mux
@@ -349,7 +352,7 @@ launchctl list | grep claude-mux
 tail -f ~/Claude/claude-mux.log
 
 # Unload for debugging
-launchctl unload ~/Library/LaunchAgents/com.user.claude-mux.plist
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.user.claude-mux.plist
 ```
 
 ### Phase 6: Reboot Test

@@ -1,5 +1,6 @@
 # ~/.claude-mux-rc — claude-mux user configuration
-# Copy this file to ~/.claude-mux-rc and uncomment settings to override defaults.
+# Reference template. The installer (install.sh) creates ~/.claude-mux-rc automatically.
+# For manual setup, copy this file to ~/.claude-mux-rc and uncomment settings to override defaults.
 # This file is sourced by claude-mux at startup.
 
 # Root directory containing category and project directories.

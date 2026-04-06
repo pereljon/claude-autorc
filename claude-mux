@@ -111,7 +111,9 @@ source "$HOME/.claude-mux-rc"
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-SLEEP_BETWEEN=5
+# Seconds to wait between launching each session (mitigates RC registration issues).
+# Override in ~/.claude-mux-rc if needed.
+SLEEP_BETWEEN="${SLEEP_BETWEEN:-5}"
 LOG_FILE="$BASE_DIR/claude-mux.log"
 
 TMUX_BIN="/opt/homebrew/bin/tmux"
@@ -200,8 +202,10 @@ get_managed_session_names() {
         _cat_name="$(basename "$_cat_dir")"
         [[ ! -d "$_cat_dir" || "$_cat_name" == .* || "$_cat_name" == -* ]] && continue
 
-        # Category-level session
-        MANAGED_SESSIONS+=("$_cat_name")
+        # Category-level session (sanitized like project names)
+        local _cat_sanitized
+        _cat_sanitized="$(sanitize_session_name "$_cat_name")"
+        [[ -n "$_cat_sanitized" ]] && MANAGED_SESSIONS+=("$_cat_sanitized")
 
         # Project-level sessions
         for _sub_dir in "$_cat_dir"/*/; do
@@ -293,7 +297,7 @@ status_claude_sessions() {
 ensure_git_repo() {
     local dir="$1"
     [[ "$AUTO_GIT_INIT" != "true" ]] && return
-    if [[ ! -d "$dir/.git" ]]; then
+    if [[ ! -d "$dir/.git" && ! -f "$dir/.git" ]]; then
         log "Initializing git repo in $dir"
         if [[ "$DRY_RUN" != "true" ]]; then
             git init "$dir" >> "$LOG_FILE" 2>&1
@@ -362,6 +366,22 @@ setup_default_mode() {
     [[ -z "$DEFAULT_PERMISSION_MODE" ]] && return
 
     local settings_file="$dir/.claude/settings.local.json"
+
+    # Skip if already set to the desired value (avoid spurious file touches)
+    if [[ -f "$settings_file" ]]; then
+        local current
+        current=$(/usr/bin/python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f: d = json.load(f)
+    print(d.get('permissions', {}).get('defaultMode', ''))
+except: pass
+" "$settings_file" 2>/dev/null)
+        if [[ "$current" == "$DEFAULT_PERMISSION_MODE" ]]; then
+            return
+        fi
+    fi
+
     log "Setting defaultMode=$DEFAULT_PERMISSION_MODE in $dir"
     [[ "$DRY_RUN" == "true" ]] && return
 
@@ -462,13 +482,17 @@ claude --remote-control --permission-mode auto --name '${session_name}' --append
 LAUNCH_EOF
     chmod +x "$launch_script"
 
-    "$TMUX_BIN" send-keys -t "$session_name" "bash '${launch_script}'" Enter
+    if ! "$TMUX_BIN" send-keys -t "$session_name" "bash '${launch_script}'" Enter 2>/dev/null; then
+        log "WARN: send-keys failed for '$session_name', cleaning up temp script"
+        rm -f "$launch_script"
+        return
+    fi
 
     # Auto-accept the workspace trust prompt if it appears.
     # All directories managed by this script are the user's own projects.
     # Option 1 is pre-selected (❯); just send Enter to confirm.
     sleep 5
-    if "$TMUX_BIN" capture-pane -t "$session_name" -p 2>/dev/null | grep -q "trust"; then
+    if "$TMUX_BIN" capture-pane -t "$session_name" -p 2>/dev/null | grep -q "Yes, I trust this folder"; then
         log "Auto-accepting trust prompt for '$session_name'"
         "$TMUX_BIN" send-keys -t "$session_name" "" Enter
     fi
@@ -556,7 +580,7 @@ discover_categories() {
 ensure_base_dir() {
     if [[ ! -d "$BASE_DIR" ]]; then
         if [[ "$DRY_RUN" == "true" ]]; then
-            echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] WARN: $BASE_DIR does not exist — nothing to do"
+            log "WARN: $BASE_DIR does not exist — nothing to do"
             exit 0
         fi
         mkdir -p "$BASE_DIR"
@@ -589,8 +613,15 @@ start_sessions() {
             continue
         fi
 
+        local cat_session
+        cat_session="$(sanitize_session_name "$CATEGORY")"
+        if [[ -z "$cat_session" ]]; then
+            log "Skipping category '$CATEGORY': name is empty after sanitization"
+            continue
+        fi
+
         ensure_git_repo "$CATEGORY_DIR"
-        create_claude_session "$CATEGORY" "$CATEGORY_DIR"
+        create_claude_session "$cat_session" "$CATEGORY_DIR"
 
         for SUBDIR in "$CATEGORY_DIR"/*/; do
             SUBDIR="${SUBDIR%/}"
@@ -627,7 +658,22 @@ case "$COMMAND" in
     shutdown) shutdown_claude_sessions ;;
     restart)
         shutdown_claude_sessions
-        sleep 3  # give claude processes time to exit cleanly
+        # Poll until all managed Claude processes have exited (max 30s)
+        get_managed_session_names
+        _wait=0
+        while [[ $_wait -lt 30 ]]; do
+            _still_running=false
+            for _s in "${MANAGED_SESSIONS[@]}"; do
+                if "$TMUX_BIN" has-session -t "$_s" 2>/dev/null && claude_running_in_session "$_s"; then
+                    _still_running=true
+                    break
+                fi
+            done
+            [[ "$_still_running" != "true" ]] && break
+            sleep 1
+            (( _wait++ ))
+        done
+        [[ $_wait -ge 30 ]] && log "WARN: Some Claude sessions did not exit within 30s — proceeding with restart"
         start_sessions
         ;;
 esac
