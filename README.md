@@ -63,13 +63,14 @@ launchctl list | grep claude-sessions
 
 ## Configuration
 
-Copy the example config to your home directory and uncomment the settings you want to change:
+On first run, the script automatically creates `~/.claude-autorc` with all settings commented out and documented. Edit it to override any defaults — you never need to touch the script itself:
 
 ```bash
-cp claude-autorc.example ~/.claude-autorc
+# Created automatically on first run — edit to customize:
+~/.claude-autorc
 ```
 
-The script sources `~/.claude-autorc` at startup if it exists — you never need to edit the script itself. Available settings:
+Available settings:
 
 | Variable | Default | Description |
 |----------|---------|-------------|

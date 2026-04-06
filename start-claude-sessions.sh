@@ -25,10 +25,37 @@ ALLOW_CROSS_SESSION_CONTROL=false
 
 # ── User config (overrides defaults above) ────────────────────────────────────
 
-if [[ -f "$HOME/.claude-autorc" ]]; then
-    # shellcheck source=/dev/null
-    source "$HOME/.claude-autorc"
+if [[ ! -f "$HOME/.claude-autorc" ]]; then
+    cat > "$HOME/.claude-autorc" << 'CONFIG_EOF'
+# ~/.claude-autorc — Claude Auto Remote Control user configuration
+# Generated on first run. Uncomment and edit settings to override defaults.
+# This file is sourced by start-claude-sessions.sh at startup.
+
+# Root directory containing category and project directories.
+# Default: $HOME/Claude
+#BASE_DIR="$HOME/Claude"
+
+# When true, create a .gitignore with common development exclusions
+# if one does not already exist in the project directory.
+# Default: true
+#AUTO_GITIGNORE=true
+
+# Set Claude's permissions.defaultMode for each project via .claude/settings.local.json.
+# Valid values: "" (disabled), "default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"
+# Default: "auto"
+#DEFAULT_PERMISSION_MODE="auto"
+
+# When true, Claude sessions can send slash commands to OTHER sessions via tmux.
+# When false, sessions can only send commands to themselves.
+# Enable for multi-agent orchestration workflows.
+# Default: false
+#ALLOW_CROSS_SESSION_CONTROL=false
+CONFIG_EOF
+    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Created default config at $HOME/.claude-autorc" >> "$BASE_DIR/startup.log"
 fi
+
+# shellcheck source=/dev/null
+source "$HOME/.claude-autorc"
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
