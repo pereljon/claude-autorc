@@ -96,13 +96,6 @@ for _dir in "$BASE_DIR"/*/; do
     fi
 done
 
-# ── Startup delay (LaunchAgent only, skipped in dry-run) ──────────────────────
-
-if [[ "$DRY_RUN" != "true" ]]; then
-    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Waiting 45 seconds for system services to initialize..." >> "$LOG_FILE"
-    sleep 45
-fi
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 log() {
@@ -115,6 +108,13 @@ log() {
         [[ -t 1 ]] && echo "$msg"
     fi
 }
+
+# ── Startup delay (LaunchAgent only, skipped in dry-run) ──────────────────────
+
+if [[ "$DRY_RUN" != "true" ]]; then
+    log "Waiting 45 seconds for system services to initialize..."
+    sleep 45
+fi
 
 # ── Dependency check ──────────────────────────────────────────────────────────
 
