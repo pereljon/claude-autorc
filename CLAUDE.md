@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-The startup script dynamically discovers category directories under `~/Claude/` (any subdir not starting with `.` or `-`), migrates stray Claude processes into tmux, initializes git repos where missing, and creates one tmux session per project with Claude running in RC mode. It attempts `claude -c` to resume a prior session, falling back to a fresh `claude --remote-control` on failure.
+The startup script dynamically discovers category directories under `~/Claude/` (any subdir not starting with `.` or `-`), migrates stray Claude processes into tmux, optionally initializes git repos (disabled by default), and creates one tmux session per project with Claude running in RC mode. It attempts `claude -c` to resume a prior session, falling back to a fresh `claude --remote-control` on failure.
 
 The LaunchAgent runs the script at login with a 45-second startup delay for system services to initialize.
 
@@ -82,6 +82,7 @@ The plist and `claude-autorc.example` follow the same pattern — edit in repo, 
 `~/.claude-autorc` is the user config (not in this repo). A documented template is at `claude-autorc.example`. Key variables:
 
 - `BASE_DIR` — root directory (default: `~/Claude`)
+- `AUTO_GIT_INIT` — run `git init` in projects without a repo (default: `false`)
 - `AUTO_GITIGNORE` — create `.gitignore` in each project (default: `true`)
 - `DEFAULT_PERMISSION_MODE` — Claude permission mode per project (default: `auto`)
 - `ALLOW_CROSS_SESSION_CONTROL` — allow sessions to send commands to each other (default: `false`)
