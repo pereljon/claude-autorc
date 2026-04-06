@@ -211,7 +211,9 @@ All output appended to `$BASE_DIR/claude-autorc.log` with UTC timestamps in ISO 
 [2026-04-06T08:00:00Z] message
 ```
 
-In `--dry-run` mode, output goes to stdout instead of the log file.
+When stdout is a terminal (`-t 1`), output is also mirrored to stdout in real time. When run via LaunchAgent (no terminal), log file only.
+
+In `--dry-run` mode, output goes to stdout only (not the log file).
 
 ## LaunchAgent: com.user.claude-sessions.plist
 

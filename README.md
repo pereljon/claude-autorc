@@ -139,4 +139,6 @@ tmux attach -t project-name
 
 - `~/Claude/claude-autorc.log` — all script actions with UTC timestamps
 
+When run directly from the terminal, output is mirrored to stdout in real time so you can see what's happening. When run via LaunchAgent (no terminal attached), output goes to the log file only.
+
 LaunchAgent stdout/stderr are not redirected to files — if needed for low-level debugging, use Console.app or `log show`.
