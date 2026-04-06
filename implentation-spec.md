@@ -1,40 +1,55 @@
-# Claude Sessions Startup: Implementation Spec
+# Claude Auto Remote Control (`claude-autorc`): Implementation Spec
 
 ## Overview
 
-A shell script and macOS LaunchAgent that automatically creates persistent tmux sessions running Claude Code with Remote Control for each project directory under `~/Claude/`.
+A shell script and macOS LaunchAgent that automatically creates persistent tmux sessions running Claude Code with Remote Control for each project directory under `~/Claude/` (configurable).
 
 ## Directory Structure (Expected)
 
 ```
-~/Claude/
-├── work/
-│   ├── CLAUDE.md
-│   ├── .claude/
+~/Claude/                          ← BASE_DIR (configurable)
+├── work/                          ← category (any top-level dir not starting with . or -)
 │   ├── project-a/
 │   ├── project-b/
-│   └── -archived-thing/    ← excluded (starts with -)
-└── personal/
-    ├── CLAUDE.md
-    ├── .claude/
-    ├── project-c/
-    └── project-d/
+│   └── -archived-thing/           ← excluded (starts with -)
+├── personal/                      ← category
+│   ├── project-c/
+│   └── project-d/
+└── -old/                          ← excluded (starts with -)
 ```
+
+Categories are discovered dynamically — any subdirectory of `BASE_DIR` not starting with `.` or `-`.
 
 ## Deliverables
 
 1. `~/Claude/start-claude-sessions.sh` — main script
-2. `~/Library/LaunchAgents/com.user.claude-sessions.plist` — triggers script at user login
+2. `com.user.claude-sessions.plist` — LaunchAgent plist (user installs to `~/Library/LaunchAgents/`)
+3. `claude-autorc.example` — example user config file
+
+## User Configuration: ~/.claude-autorc
+
+On first run, the script creates `~/.claude-autorc` with all settings commented out. Users edit this file to override defaults without touching the script.
+
+### Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BASE_DIR` | `$HOME/Claude` | Root directory containing category and project directories |
+| `AUTO_GITIGNORE` | `true` | Create `.gitignore` with common dev exclusions if one doesn't exist |
+| `DEFAULT_PERMISSION_MODE` | `auto` | Set `permissions.defaultMode` in `.claude/settings.local.json` per project. Valid: `""` (disabled), `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions` |
+| `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions are told they can send slash commands to other sessions via tmux. When `false`, sessions can only send commands to themselves. |
+
+The script sources `~/.claude-autorc` after setting defaults, so any variable set in the config overrides the default.
 
 ## Script: start-claude-sessions.sh
 
 ### Requirements
 
-- Bash (system `/bin/bash` is fine)
-- `tmux` from Homebrew at `/opt/homebrew/bin/tmux`
-- `claude` from Homebrew at `/opt/homebrew/bin/claude`
-- Must be re-runnable: safe to execute multiple times, only creates sessions that don't already exist
-- Must support a `--dry-run` flag that prints what it would do without executing
+- Bash (`/bin/bash`)
+- `tmux` at `/opt/homebrew/bin/tmux`
+- `claude` at `/opt/homebrew/bin/claude`
+- Idempotent: safe to re-run; only creates sessions that don't already exist
+- `--dry-run` flag: prints actions without executing (skips session migration)
 
 ### Environment
 
@@ -42,24 +57,90 @@ A shell script and macOS LaunchAgent that automatically creates persistent tmux 
 - HOME is inherited from the login session via LaunchAgent
 - Apple Silicon Mac (arm64)
 
-### Configuration
+### Startup Sequence
 
-At the top of the script, the following settings control optional per-project setup:
-
-```bash
-# When true, create a .gitignore with common development exclusions
-# if one does not already exist in the project directory
-AUTO_GITIGNORE=true
-
-# When set to a valid mode, create/update .claude/settings.local.json
-# to set permissions.defaultMode for the project.
-# Valid values: "" (disabled), "default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"
-DEFAULT_PERMISSION_MODE="auto"
+```
+1. Set defaults (BASE_DIR, AUTO_GITIGNORE, DEFAULT_PERMISSION_MODE, ALLOW_CROSS_SESSION_CONTROL)
+2. Create ~/.claude-autorc with commented defaults if it doesn't exist
+3. Source ~/.claude-autorc (user overrides apply from here on)
+4. Parse --dry-run flag
+5. Create BASE_DIR if it doesn't exist (exit cleanly in dry-run if missing)
+6. Discover CATEGORIES (subdirs of BASE_DIR not starting with . or -)
+7. 45-second startup delay (skipped in dry-run) for LaunchAgent login use
+8. Check dependencies (tmux, claude)
+9. Detect GitHub SSH accounts from ~/.ssh/config
+10. migrate_stray_sessions()
+11. For each CATEGORY: ensure_git_repo, create_claude_session
+12. For each project SUBDIR: ensure_git_repo, setup_gitignore, setup_default_mode, create_claude_session
 ```
 
-#### AUTO_GITIGNORE
+### Functions
 
-When enabled, the script checks each project directory for a `.gitignore`. If none exists, it creates one with common development exclusions:
+#### migrate_stray_sessions()
+
+Skipped entirely in `--dry-run` mode.
+
+Finds `claude` CLI processes (matched by full path `/opt/homebrew/bin/claude`) not running under a tmux ancestor, whose working directory is at or under a managed category directory. SIGTERMs them so the main loop can resume them via `claude -c`. Waits 2 seconds after termination only if any processes were killed.
+
+```
+migrate_stray_sessions():
+    if DRY_RUN: return
+
+    for each PID matching /opt/homebrew/bin/claude:
+        walk ancestor chain via ps -o ppid=
+        if any ancestor comm starts with "tmux": skip (already in tmux)
+
+        cwd = lsof -p PID -a -d cwd -Fn | grep ^n | cut -c2-
+        if cwd is empty: skip
+
+        if cwd == any managed_dir OR cwd starts with managed_dir + "/":
+            log "Migrating stray claude session (pid=PID, cwd=cwd)"
+            kill -TERM PID
+
+    if any processes were killed: sleep 2
+```
+
+#### detect_github_ssh_accounts()
+
+Parses `~/.ssh/config` for `Host github.com-*` entries. Sets global `GITHUB_SSH_INFO` to a prompt-ready string describing the accounts and how to use them as git remotes. Empty string if no accounts found or no ssh config.
+
+#### ensure_git_repo(dir)
+
+Runs `git init` if `$dir/.git` does not exist. Logged and skipped in dry-run.
+
+#### setup_gitignore(dir)
+
+If `AUTO_GITIGNORE=true` and no `.gitignore` exists, creates one with common exclusions (secrets, credentials, Claude settings, OS, IDE, dependencies, build artifacts). Skips if file already exists.
+
+#### setup_default_mode(dir)
+
+If `DEFAULT_PERMISSION_MODE` is non-empty, writes or merges `permissions.defaultMode` into `$dir/.claude/settings.local.json` using Python 3 for safe JSON merge. Logs a warning and skips on JSON parse/write failure.
+
+#### create_claude_session(session_name, working_dir)
+
+Skips if a tmux session with that name already exists.
+
+Builds a system prompt based on `ALLOW_CROSS_SESSION_CONTROL`:
+
+- **false (default):** Claude learns its own session name and how to send commands to itself only:
+  ```
+  You are running inside tmux session '<name>'. You can send slash commands
+  to yourself via: /opt/homebrew/bin/tmux send-keys -t '<name>' "/command args" Enter.
+  To find your own session name: /opt/homebrew/bin/tmux display-message -p '#S'.
+  <GITHUB_SSH_INFO>
+  ```
+
+- **true:** Claude also learns how to target other sessions and list all sessions.
+
+Writes the launch command to a temp script (`/tmp/claude-launch-XXXXXX.sh`) to avoid quoting complexity. The temp script uses `trap EXIT` to guarantee self-cleanup. Sends the temp script path to the tmux pane via `send-keys`. Sleeps `SLEEP_BETWEEN` seconds after launching.
+
+Launch command inside temp script:
+```bash
+claude -c --rc --name '<session_name>' --append-system-prompt '<prompt>' 2>/dev/null || \
+claude --rc --name '<session_name>' --append-system-prompt '<prompt>'
+```
+
+### AUTO_GITIGNORE template
 
 ```
 # Secrets and credentials
@@ -104,121 +185,16 @@ build/
 *.dylib
 ```
 
-If a `.gitignore` already exists, it is left untouched.
-
-#### DEFAULT_PERMISSION_MODE
-
-When set to a non-empty value, the script ensures `.claude/settings.local.json` exists in the project directory with `permissions.defaultMode` set to the configured value. If the file already exists, it merges the setting (preserving other keys). If the file does not exist, it creates the directory and file.
-
-### Logic (Pseudocode)
-
-```
-BASE_DIR="$HOME/Claude"
-CATEGORIES=("work" "personal")
-SLEEP_BETWEEN=5  # seconds between claude launches
-LOG_FILE="$BASE_DIR/startup.log"
-
-log(message):
-    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $message" >> $LOG_FILE
-
-for each CATEGORY in CATEGORIES:
-    CATEGORY_DIR="$BASE_DIR/$CATEGORY"
-
-    if CATEGORY_DIR does not exist:
-        log "WARN: $CATEGORY_DIR not found, skipping"
-        continue
-
-    # Ensure git repo exists (bypasses trust prompt)
-    ensure_git_repo(CATEGORY_DIR)
-
-    # Create tmux session for category top-level
-    create_claude_session(CATEGORY, CATEGORY_DIR)
-
-    # Iterate subdirectories
-    for each SUBDIR in CATEGORY_DIR/*/:
-        dir_name = basename(SUBDIR)
-
-        # Skip hidden dirs, .claude dir, dirs starting with -
-        if dir_name starts with "." OR dir_name starts with "-":
-            continue
-
-        ensure_git_repo(SUBDIR)
-        setup_gitignore(SUBDIR)
-        setup_default_mode(SUBDIR)
-        create_claude_session(dir_name, SUBDIR)
-
-        sleep $SLEEP_BETWEEN
-    done
-done
-
-setup_gitignore(dir):
-    if not AUTO_GITIGNORE:
-        return
-    if exists "$dir/.gitignore":
-        log "Gitignore already exists in $dir, skipping"
-        return
-    log "Creating .gitignore in $dir"
-    if not DRY_RUN:
-        write default gitignore template to "$dir/.gitignore"
-
-setup_default_mode(dir):
-    if DEFAULT_PERMISSION_MODE is empty:
-        return
-    settings_file="$dir/.claude/settings.local.json"
-    log "Setting defaultMode=$DEFAULT_PERMISSION_MODE in $dir"
-    if not DRY_RUN:
-        mkdir -p "$dir/.claude"
-        if exists "$settings_file":
-            # merge defaultMode into existing JSON (use python or jq)
-            merge permissions.defaultMode into settings_file
-        else:
-            write {"permissions":{"defaultMode":"$DEFAULT_PERMISSION_MODE"}} to settings_file
-
-ensure_git_repo(dir):
-    if not exists "$dir/.git":
-        log "Initializing git repo in $dir"
-        if not DRY_RUN:
-            git init "$dir"
-
-create_claude_session(session_name, working_dir):
-    if tmux has-session -t "$session_name" 2>/dev/null:
-        log "Session '$session_name' already exists, skipping"
-        return
-
-    log "Creating tmux session '$session_name' in $working_dir"
-
-    if DRY_RUN:
-        return
-
-    tmux new-session -d -s "$session_name" -c "$working_dir"
-
-    # Build system prompt with tmux session awareness
-    TMUX_PROMPT="You are running inside tmux session '$session_name'. You can send slash commands to yourself or any other Claude session via: /opt/homebrew/bin/tmux send-keys -t <session-name> \"/command args\" Enter. To list all sessions: /opt/homebrew/bin/tmux list-sessions. To find your own session name: /opt/homebrew/bin/tmux display-message -p '#S'."
-
-    # Attempt continue, fall back to new session
-    # Send command to the tmux pane; claude -c will either
-    # continue the last session or fail with exit message.
-    # Use a wrapper that tries -c first, then falls back.
-    tmux send-keys -t "$session_name" \
-        "claude -c --rc --name '$session_name' --append-system-prompt '$TMUX_PROMPT' 2>/dev/null || claude --rc --name '$session_name' --append-system-prompt '$TMUX_PROMPT'" \
-        Enter
-
-    sleep $SLEEP_BETWEEN
-```
-
-### Fallback Behavior for claude -c
-
-`claude -c` fails with "No conversation found to continue" and a non-zero exit code when no prior session exists in a directory. The script pipes this through `||` to fall back to `claude --rc --name <name>` which starts a fresh session.
-
-The command is sent to the tmux pane via `send-keys`, so both commands execute within the tmux session's shell, not the script's shell. The `2>/dev/null` suppresses the error message from the failed `-c` attempt.
-
 ### --dry-run Flag
 
 When `--dry-run` is passed as the first argument:
 
 - Print every action that would be taken (git init, tmux session creation, claude command)
 - Do not execute any of them
-- Still log to stdout (not to file)
+- Log to stdout instead of file
+- Skip `migrate_stray_sessions()` entirely
+- Exit cleanly if `BASE_DIR` doesn't exist (don't create it)
+- Still creates `~/.claude-autorc` if missing (one-time setup, not an operational action)
 
 ### Exclusion Rules
 
@@ -227,13 +203,18 @@ Skip any subdirectory where the directory name:
 - Starts with `.` (hidden directories, includes `.claude`)
 - Starts with `-` (user convention for excluded/archived folders)
 
+Applies at both the category level (subdirs of `BASE_DIR`) and project level (subdirs of each category).
+
 ### Logging
 
-All output appended to `~/Claude/startup.log` with UTC timestamps in ISO 8601 format. One log entry per action (skip, create, git init, error).
+All output appended to `$BASE_DIR/startup.log` with UTC timestamps in ISO 8601 format:
+```
+[2026-04-06T08:00:00Z] message
+```
+
+In `--dry-run` mode, output goes to stdout instead of the log file.
 
 ## LaunchAgent: com.user.claude-sessions.plist
-
-### Configuration
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -247,7 +228,7 @@ All output appended to `~/Claude/startup.log` with UTC timestamps in ISO 8601 fo
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>~/Claude/start-claude-sessions.sh</string>
+        <string>/Users/jonathan/Claude/start-claude-sessions.sh</string>
     </array>
 
     <key>RunAtLoad</key>
@@ -260,34 +241,45 @@ All output appended to `~/Claude/startup.log` with UTC timestamps in ISO 8601 fo
     </dict>
 
     <key>StandardOutPath</key>
-    <string>~/Claude/launchagent-stdout.log</string>
+    <string>/Users/jonathan/Claude/launchagent-stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>~/Claude/launchagent-stderr.log</string>
+    <string>/Users/jonathan/Claude/launchagent-stderr.log</string>
 </dict>
 </plist>
 ```
 
 ### Notes
 
-- The plist uses `RunAtLoad` to execute at user login.
-- The script itself contains a startup delay (`sleep 45` at the top) to allow networking and Homebrew services to initialize after login.
-- `~` in plist paths: launchd expands `~` in `StandardOutPath`/`StandardErrorPath` but NOT in `ProgramArguments`. The script path in `ProgramArguments` must either use the full expanded path or the script must handle this. Implementation should use `$HOME` expansion in the bash script and a fully qualified path in the plist. The Claude Code implementer should resolve this: either hardcode the expanded `$HOME` path or use a wrapper approach.
+- `RunAtLoad: true` — executes at user login.
+- 45-second startup delay in the script allows networking and Homebrew services to initialize.
+- `~` does NOT expand in `ProgramArguments` — use fully-qualified paths (`/Users/<username>/...`).
+- `~` DOES expand in `StandardOutPath`/`StandardErrorPath` — but hardcoded paths are used for consistency.
 - LaunchAgent runs in the user's login session, inheriting `$USER` and `$HOME`.
 
 ## Edge Cases
 
 | Case | Handling |
 |------|----------|
-| No prior Claude session in directory | `claude -c` fails, `||` falls back to `claude --rc --name <name>` |
+| No prior Claude session in directory | `claude -c` fails, `\|\|` falls back to `claude --rc --name <name>` |
 | Directory has no `.git` | Script runs `git init` before launching Claude (bypasses trust prompt) |
 | tmux session already exists | Skip, log, continue to next |
+| Claude exited but tmux session still alive | Script skips (tmux session exists); Claude is not re-launched |
 | Category directory missing | Log warning, skip to next category |
-| No subdirectories in a category | Only the category-level session is created |
-| Folder name starts with `-` | Excluded |
-| Folder name starts with `.` | Excluded (covers `.claude` and hidden dirs) |
-| Script re-run after adding new project folder | Creates session for new folder, skips existing sessions |
-| tmux not installed | Script should check for tmux/claude in PATH at startup and exit with error if missing |
+| No category directories found | Log warning, exit cleanly |
+| BASE_DIR does not exist | Created automatically (dry-run: exit cleanly with warning) |
+| Folder name starts with `-` | Excluded at category and project level |
+| Folder name starts with `.` | Excluded at category and project level |
+| Script re-run after adding new project | Creates session for new folder, skips existing sessions |
+| tmux or claude not installed | Dependency check at startup exits with error |
+| Stray claude process outside tmux in managed dir | SIGTERMed; new tmux session resumes via `claude -c` |
+| Stray claude process in unmanaged dir | Left untouched |
+| Claude Desktop or IDE extension processes | Not matched — filter uses full path `/opt/homebrew/bin/claude` |
+| `~/.claude-autorc` does not exist | Created with commented defaults on first run |
+| `.claude` exists as a file (not dir) | `mkdir -p` fails; `setup_default_mode` logs warning and skips |
+| `settings.local.json` contains invalid JSON | Python merge fails; logs warning and skips |
+| No GitHub SSH accounts in `~/.ssh/config` | `GITHUB_SSH_INFO` is empty; prompt omits the SSH section |
+| Multiple GitHub SSH accounts | All injected into system prompt with their host aliases |
 
 ## Testing Instructions
 
@@ -298,15 +290,15 @@ chmod +x ~/Claude/start-claude-sessions.sh
 ~/Claude/start-claude-sessions.sh --dry-run
 ```
 
-Verify printed output lists correct directories, session names, and git init targets.
+Verify output lists correct directories, session names, git init targets, and detected GitHub SSH accounts. Confirm no files are created or modified.
 
 ### Phase 2: Single Session
 
-Comment out the loop. Test with one project directory:
+Test with one project directory:
 
 - Verify tmux session is created with correct name
 - Verify Claude starts with Remote Control enabled
-- Verify session appears in claude.ai/code
+- Verify `~/.claude-autorc` was created on first run
 - Verify re-running the script skips the existing session
 
 ### Phase 3: Full Run
@@ -316,9 +308,16 @@ Comment out the loop. Test with one project directory:
 tmux list-sessions
 ```
 
-Verify all expected sessions exist. Connect to each via `tmux attach -t <name>` and confirm Claude is running.
+Verify all expected sessions exist. Connect via `tmux attach -t <name>` and confirm Claude is running with the correct system prompt (check session name and GitHub SSH accounts).
 
-### Phase 4: LaunchAgent
+### Phase 4: Session Migration
+
+With a Claude process running outside tmux in a managed directory, run the script and verify:
+- The stray process is terminated
+- A new tmux session is created for that directory
+- `claude -c` resumes the conversation
+
+### Phase 5: LaunchAgent
 
 ```bash
 # Install
@@ -336,7 +335,7 @@ cat ~/Claude/startup.log
 launchctl unload ~/Library/LaunchAgents/com.user.claude-sessions.plist
 ```
 
-### Phase 5: Reboot Test
+### Phase 6: Reboot Test
 
 Restart the Mac. After login, wait 60 seconds, then verify:
 
@@ -346,9 +345,9 @@ tmux list-sessions
 
 All sessions should be present. Check `~/Claude/startup.log` for any errors.
 
-## Open Items for Implementer
+## Resolved Implementation Notes
 
-1. **Resolve plist path expansion**: `~` does not expand in `ProgramArguments`. Use either `$HOME` substitution during install or a fixed path like `/Users/<username>/Claude/start-claude-sessions.sh`. The install step can detect and substitute.
-2. **Verify `claude -c` exit code**: Confirm that `claude -c` with no prior session returns a non-zero exit code (not just a message to stdout). If it exits 0 with an error message, the `||` fallback won't trigger and the approach needs adjustment (e.g., check stderr or use a temp file).
-3. **tmux send-keys fallback**: Since the `claude -c || claude` command runs inside the tmux pane's shell, verify that the `||` operator works as expected when sent via `tmux send-keys`. If `claude -c` launches an interactive TUI that doesn't exit cleanly on failure, the fallback may not execute. Test this scenario explicitly.
-4. **Rate limiting**: Multiple simultaneous RC registrations may hit API rate limits. The 5-second sleep between launches mitigates this, but adjust if errors appear in logs.
+1. **Plist path expansion**: `~` does not expand in `ProgramArguments` — hardcoded `/Users/<username>/Claude/start-claude-sessions.sh` used.
+2. **`claude -c` exit code**: Confirmed non-zero on no prior session; `||` fallback works correctly.
+3. **tmux send-keys quoting**: Resolved by writing a temp script and sending its path, avoiding shell quoting complexity in `send-keys`.
+4. **Rate limiting**: 5-second sleep between launches mitigates simultaneous RC registration issues.
