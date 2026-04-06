@@ -19,7 +19,7 @@ The LaunchAgent runs the script at login with a 45-second startup delay for syst
 
 ### Key behaviors
 
-- **Idempotent**: safe to re-run; skips existing tmux sessions
+- **Idempotent**: safe to re-run; skips sessions where claude is already running, relaunches where it has exited
 - **Exclusion**: directories starting with `.` or `-` are skipped
 - **Dynamic categories**: all top-level subdirs of `~/Claude/` (not starting with `.` or `-`) are treated as categories
 - **Session migration**: SIGTERMs Claude processes running outside tmux in managed directories; `claude -c` resumes them in the new tmux session
@@ -61,6 +61,30 @@ tail -f ~/Claude/claude-autorc.log
 # LaunchAgent debug (stdout/stderr go to macOS unified log, not a file)
 log show --predicate 'process == "launchd"' --last 5m | grep claude
 ```
+
+## Development workflow
+
+The script has two locations:
+- **Repo**: `~/Claude/development/claude-code-sessions/start-claude-sessions.sh` (version-controlled)
+- **Active**: `~/Claude/start-claude-sessions.sh` (what actually runs)
+
+Always edit the repo copy first, commit and push, then deploy to the active location:
+
+```bash
+# After editing and committing in the repo:
+cp ~/Claude/development/claude-code-sessions/start-claude-sessions.sh ~/Claude/
+```
+
+The plist and `claude-autorc.example` follow the same pattern — edit in repo, copy to deploy.
+
+## Configuration file
+
+`~/.claude-autorc` is the user config (not in this repo). A documented template is at `claude-autorc.example`. Key variables:
+
+- `BASE_DIR` — root directory (default: `~/Claude`)
+- `AUTO_GITIGNORE` — create `.gitignore` in each project (default: `true`)
+- `DEFAULT_PERMISSION_MODE` — Claude permission mode per project (default: `auto`)
+- `ALLOW_CROSS_SESSION_CONTROL` — allow sessions to send commands to each other (default: `false`)
 
 ## Implementation spec
 
