@@ -22,7 +22,7 @@ Categories are discovered dynamically — any subdirectory of `BASE_DIR` not sta
 
 ## Deliverables
 
-1. `~/Claude/start-claude-sessions.sh` — main script
+1. `~/Claude/claude-autorc` — main script
 2. `com.user.claude-sessions.plist` — LaunchAgent plist (user installs to `~/Library/LaunchAgents/`)
 3. `claude-autorc.example` — example user config file
 
@@ -41,7 +41,7 @@ On first run, the script creates `~/.claude-autorc` with all settings commented 
 
 The script sources `~/.claude-autorc` after setting defaults, so any variable set in the config overrides the default.
 
-## Script: start-claude-sessions.sh
+## Script: claude-autorc
 
 ### Requirements
 
@@ -246,7 +246,7 @@ In `--dry-run` mode, output goes to stdout only (not the log file).
     <array>
         <string>/bin/bash</string>
         <string>-c</string>
-        <string>exec "$HOME/Claude/start-claude-sessions.sh"</string>
+        <string>exec "$HOME/Claude/claude-autorc"</string>
     </array>
 
     <key>RunAtLoad</key>
@@ -301,8 +301,8 @@ In `--dry-run` mode, output goes to stdout only (not the log file).
 ### Phase 1: Dry Run
 
 ```bash
-chmod +x ~/Claude/start-claude-sessions.sh
-~/Claude/start-claude-sessions.sh --dry-run
+chmod +x ~/Claude/claude-autorc
+~/Claude/claude-autorc --dry-run
 ```
 
 Verify output lists correct directories, session names, git init targets, and detected GitHub SSH accounts. Confirm no files are created or modified.
@@ -319,7 +319,7 @@ Test with one project directory:
 ### Phase 3: Full Run
 
 ```bash
-~/Claude/start-claude-sessions.sh
+~/Claude/claude-autorc
 tmux list-sessions
 ```
 

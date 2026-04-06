@@ -23,13 +23,48 @@ DEFAULT_PERMISSION_MODE="auto"
 # commands to themselves — safer, prevents one session affecting others.
 ALLOW_CROSS_SESSION_CONTROL=false
 
+# ── Flag parsing ───────────────────────────────────────────────────────────────
+
+DRY_RUN=false
+COMMAND="start"
+
+usage() {
+    cat << EOF
+Usage: claude-autorc [OPTIONS]
+
+Automatically create and maintain persistent tmux sessions running Claude Code
+with Remote Control for each project directory under ~/Claude/.
+
+Options:
+  --dry-run     Print actions without executing (no sessions created or modified)
+  --shutdown    Gracefully shut down all Claude tmux sessions (sends /exit to each)
+  -h, --help    Show this help message
+
+Configuration:
+  ~/.claude-autorc    User config file (created automatically on first run)
+
+Logs:
+  ~/Claude/claude-autorc.log
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --dry-run)   DRY_RUN=true; shift ;;
+        --shutdown)  COMMAND="shutdown"; shift ;;
+        -h|--help)   usage; exit 0 ;;
+        -*)          echo "Unknown option: $1" >&2; echo >&2; usage >&2; exit 1 ;;
+        *)           echo "Unexpected argument: $1" >&2; echo >&2; usage >&2; exit 1 ;;
+    esac
+done
+
 # ── User config (overrides defaults above) ────────────────────────────────────
 
 if [[ ! -f "$HOME/.claude-autorc" ]]; then
     cat > "$HOME/.claude-autorc" << 'CONFIG_EOF'
 # ~/.claude-autorc — Claude Auto Remote Control user configuration
 # Generated on first run. Uncomment and edit settings to override defaults.
-# This file is sourced by start-claude-sessions.sh at startup.
+# This file is sourced by claude-autorc at startup.
 
 # Root directory containing category and project directories.
 # Default: $HOME/Claude
@@ -67,35 +102,6 @@ CLAUDE="/opt/homebrew/bin/claude"
 
 export PATH="/opt/homebrew/bin:$PATH"
 
-# ── Flags ─────────────────────────────────────────────────────────────────────
-
-DRY_RUN=false
-if [[ "${1:-}" == "--dry-run" ]]; then
-    DRY_RUN=true
-fi
-
-# ── Ensure base directory exists ───────────────────────────────────────────────
-
-if [[ ! -d "$BASE_DIR" ]]; then
-    if [[ "$DRY_RUN" == "true" ]]; then
-        echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] WARN: $BASE_DIR does not exist — nothing to do"
-        exit 0
-    fi
-    mkdir -p "$BASE_DIR"
-fi
-
-# ── Discover category directories ─────────────────────────────────────────────
-# Any subdir of BASE_DIR not starting with '.' or '-' is treated as a category.
-
-CATEGORIES=()
-for _dir in "$BASE_DIR"/*/; do
-    _dir="${_dir%/}"
-    _name="$(basename "$_dir")"
-    if [[ -d "$_dir" && "$_name" != .* && "$_name" != -* ]]; then
-        CATEGORIES+=("$_name")
-    fi
-done
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 log() {
@@ -109,9 +115,25 @@ log() {
     fi
 }
 
+# Returns true if claude is running anywhere in the process tree rooted at pane_pid
+claude_running_in_session() {
+    local session_name="$1"
+    local pane_pid
+    pane_pid=$("$TMUX" display-message -t "$session_name" -p '#{pane_pid}' 2>/dev/null)
+    [[ -z "$pane_pid" ]] && return 1
+
+    local pane_children tree_cmds=""
+    pane_children=$(pgrep -P "$pane_pid" 2>/dev/null)
+    for child in $pane_children; do
+        tree_cmds+=$(ps -o comm= -p "$child" 2>/dev/null)
+        tree_cmds+=$(pgrep -P "$child" 2>/dev/null | xargs -I{} ps -o comm= -p {} 2>/dev/null)
+    done
+    echo "$tree_cmds" | grep -q "claude"
+}
+
 # ── Startup delay (LaunchAgent only — no terminal attached) ───────────────────
 
-if [[ ! -t 1 && "$DRY_RUN" != "true" ]]; then
+if [[ "$COMMAND" == "start" && ! -t 1 && "$DRY_RUN" != "true" ]]; then
     log "Waiting 45 seconds for system services to initialize..."
     sleep 45
 fi
@@ -127,6 +149,37 @@ if [[ ! -x "$CLAUDE" ]]; then
     log "ERROR: claude not found at $CLAUDE — aborting"
     exit 1
 fi
+
+# ── Shutdown ──────────────────────────────────────────────────────────────────
+
+shutdown_claude_sessions() {
+    log "=== claude-autorc shutdown starting (dry-run=${DRY_RUN}) ==="
+
+    local sessions
+    sessions=$("$TMUX" list-sessions -F '#{session_name}' 2>/dev/null) || {
+        log "No tmux sessions found"
+        log "=== claude-autorc shutdown complete ==="
+        return
+    }
+
+    local shutdown_count=0
+    while IFS= read -r session; do
+        [[ -z "$session" ]] && continue
+        if claude_running_in_session "$session"; then
+            log "Sending /exit to session '$session'"
+            [[ "$DRY_RUN" != "true" ]] && "$TMUX" send-keys -t "$session" "/exit" Enter
+            (( shutdown_count++ ))
+        fi
+    done <<< "$sessions"
+
+    if [[ $shutdown_count -eq 0 ]]; then
+        log "No Claude sessions found to shut down"
+    else
+        log "Sent /exit to $shutdown_count session(s)"
+    fi
+
+    log "=== claude-autorc shutdown complete ==="
+}
 
 # ── Functions ─────────────────────────────────────────────────────────────────
 
@@ -264,23 +317,11 @@ create_claude_session() {
     if "$TMUX" has-session -t "$session_name" 2>/dev/null; then
         # Session exists — check if claude is still running inside it.
         # If the pane is at a shell prompt (claude exited), relaunch.
-        local pane_pid pane_cmd
-        pane_pid=$("$TMUX" display-message -t "$session_name" -p '#{pane_pid}' 2>/dev/null)
-        if [[ -n "$pane_pid" ]]; then
-            # Check if claude is running anywhere in the pane's process tree
-            local pane_children
-            pane_children=$(pgrep -P "$pane_pid" 2>/dev/null)
-            local tree_cmds=""
-            for child in $pane_children; do
-                tree_cmds+=$(ps -o comm= -p "$child" 2>/dev/null)
-                tree_cmds+=$(pgrep -P "$child" 2>/dev/null | xargs -I{} ps -o comm= -p {} 2>/dev/null)
-            done
-            if echo "$tree_cmds" | grep -q "claude"; then
-                log "Session '$session_name' already running claude, skipping"
-                return
-            fi
-            log "Session '$session_name' exists but claude is not running — relaunching"
+        if claude_running_in_session "$session_name"; then
+            log "Session '$session_name' already running claude, skipping"
+            return
         fi
+        log "Session '$session_name' exists but claude is not running — relaunching"
     fi
 
     [[ "$DRY_RUN" == "true" ]] && return
@@ -388,16 +429,50 @@ migrate_stray_sessions() {
     [[ "$found_any" == "true" ]] && sleep 2
 }
 
+# ── Discover category directories ─────────────────────────────────────────────
+# Any subdir of BASE_DIR not starting with '.' or '-' is treated as a category.
+
+discover_categories() {
+    CATEGORIES=()
+    for _dir in "$BASE_DIR"/*/; do
+        _dir="${_dir%/}"
+        _name="$(basename "$_dir")"
+        if [[ -d "$_dir" && "$_name" != .* && "$_name" != -* ]]; then
+            CATEGORIES+=("$_name")
+        fi
+    done
+}
+
+# ── Ensure base directory exists ───────────────────────────────────────────────
+
+ensure_base_dir() {
+    if [[ ! -d "$BASE_DIR" ]]; then
+        if [[ "$DRY_RUN" == "true" ]]; then
+            echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] WARN: $BASE_DIR does not exist — nothing to do"
+            exit 0
+        fi
+        mkdir -p "$BASE_DIR"
+    fi
+}
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-log "=== start-claude-sessions.sh starting (dry-run=${DRY_RUN}) ==="
+if [[ "$COMMAND" == "shutdown" ]]; then
+    shutdown_claude_sessions
+    exit 0
+fi
 
+# COMMAND == "start"
+log "=== claude-autorc starting (dry-run=${DRY_RUN}) ==="
+
+ensure_base_dir
+discover_categories
 detect_github_ssh_accounts
 [[ -n "$GITHUB_SSH_INFO" ]] && log "Detected GitHub SSH accounts:${GITHUB_SSH_INFO}"
 
 if [[ "${#CATEGORIES[@]}" -eq 0 ]]; then
     log "WARN: No category directories found under $BASE_DIR — nothing to do"
-    log "=== start-claude-sessions.sh complete ==="
+    log "=== claude-autorc complete ==="
     exit 0
 fi
 
@@ -444,4 +519,4 @@ for CATEGORY in "${CATEGORIES[@]}"; do
     done
 done
 
-log "=== start-claude-sessions.sh complete ==="
+log "=== claude-autorc complete ==="

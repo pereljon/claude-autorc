@@ -8,12 +8,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Deliverables
 
-1. `~/Claude/start-claude-sessions.sh` — main startup script (Bash)
+1. `~/Claude/claude-autorc` — main startup script (Bash)
 2. `~/Library/LaunchAgents/com.user.claude-sessions.plist` — triggers script at user login
 
 ## Architecture
 
-The startup script dynamically discovers category directories under `~/Claude/` (any subdir not starting with `.` or `-`), migrates stray Claude processes into tmux, initializes git repos where missing (to bypass Claude's trust prompt), and creates one tmux session per project with Claude running in RC mode. It attempts `claude -c` to resume a prior session, falling back to a fresh `claude --remote-control` on failure.
+The startup script dynamically discovers category directories under `~/Claude/` (any subdir not starting with `.` or `-`), migrates stray Claude processes into tmux, initializes git repos where missing (required for Claude to operate in the directory), and creates one tmux session per project with Claude running in RC mode. It attempts `claude -c` to resume a prior session, falling back to a fresh `claude --remote-control` on failure.
 
 The LaunchAgent runs the script at login with a 45-second startup delay for system services to initialize.
 
@@ -40,10 +40,10 @@ The LaunchAgent runs the script at login with a 45-second startup delay for syst
 
 ```bash
 # Dry run
-~/Claude/start-claude-sessions.sh --dry-run
+~/Claude/claude-autorc --dry-run
 
 # Full run
-~/Claude/start-claude-sessions.sh
+~/Claude/claude-autorc
 
 # Check sessions
 tmux list-sessions
@@ -65,14 +65,14 @@ log show --predicate 'process == "launchd"' --last 5m | grep claude
 ## Development workflow
 
 The script has two locations:
-- **Repo**: `~/Claude/development/claude-code-sessions/start-claude-sessions.sh` (version-controlled)
-- **Active**: `~/Claude/start-claude-sessions.sh` (what actually runs)
+- **Repo**: `~/Claude/development/claude-code-sessions/claude-autorc` (version-controlled)
+- **Active**: `~/Claude/claude-autorc` (what actually runs)
 
 Always edit the repo copy first, commit and push, then deploy to the active location:
 
 ```bash
 # After editing and committing in the repo:
-cp ~/Claude/development/claude-code-sessions/start-claude-sessions.sh ~/Claude/
+cp ~/Claude/development/claude-code-sessions/claude-autorc ~/Claude/
 ```
 
 The plist and `claude-autorc.example` follow the same pattern — edit in repo, copy to deploy.

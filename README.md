@@ -8,7 +8,7 @@ On login (or manual run), the script:
 
 1. Scans all category directories under `~/Claude/` (any subdir not starting with `.` or `-`)
 2. Migrates any Claude Code processes already running outside tmux in managed directories — SIGTERMs them so they resume cleanly inside tmux via `claude -c`
-3. Initializes git repos where missing — bypasses the trust prompt Claude Code shows for directories without one
+3. Initializes git repos where missing (required for Claude to operate in the directory)
 4. Configures each project with a `.gitignore` and `permissions.defaultMode` if not already set
 5. Creates a tmux session per project with Claude running in RC mode
 6. Attempts to resume the last conversation (`claude -c`), falling back to a fresh start
@@ -27,8 +27,8 @@ The LaunchAgent runs the script automatically at login with a 45-second startup 
 
 ```bash
 # Copy the script to ~/Claude/
-cp start-claude-sessions.sh ~/Claude/
-chmod +x ~/Claude/start-claude-sessions.sh
+cp claude-autorc ~/Claude/
+chmod +x ~/Claude/claude-autorc
 
 cp com.user.claude-sessions.plist ~/Library/LaunchAgents/
 launchctl load ~/Library/LaunchAgents/com.user.claude-sessions.plist
@@ -41,10 +41,10 @@ launchctl list | grep claude-sessions
 
 ```bash
 # Preview what would happen (no changes made)
-~/Claude/start-claude-sessions.sh --dry-run
+~/Claude/claude-autorc --dry-run
 
 # Run manually
-~/Claude/start-claude-sessions.sh
+~/Claude/claude-autorc
 
 # Check running sessions
 tmux list-sessions
