@@ -2,7 +2,7 @@
 
 Persistent Claude Code sessions for all your projects — accessible from anywhere via the Claude mobile app.
 
-A shell script and macOS LaunchAgent that automatically creates and maintains Claude Code sessions in tmux for every project directory under `~/Claude/`. Because the sessions are persistent, Claude Code's Remote Control feature gives you full access to all your projects from the Claude iOS/Android app.
+A shell script and macOS LaunchAgent that keeps a Claude Code session running for every project directory under `~/Claude/`. Persistent sessions mean Remote Control is always available — giving you access to all your projects from the Claude mobile app, wherever you are.
 
 ## What It Does
 
@@ -12,7 +12,7 @@ On login (or manual run), the script:
 2. Migrates any Claude Code processes already running outside tmux in managed directories — SIGTERMs them so they resume cleanly inside tmux via `claude -c`
 3. Optionally initializes git repos where missing (disabled by default, enable via `AUTO_GIT_INIT`)
 4. Optionally creates a `.gitignore` in each project (when `AUTO_GIT_INIT` is enabled) and sets `permissions.defaultMode` to `DEFAULT_PERMISSION_MODE` (default: `auto`)
-5. Creates a tmux session per project with Claude running in RC mode
+5. Creates a persistent tmux session per project with Claude Code running
 6. Attempts to resume the last conversation (`claude -c`), falling back to a fresh start
 
 Each Claude session is injected with its tmux session name (so it can send slash commands like `/model` and `/compact` to itself), and any GitHub SSH accounts found in `~/.ssh/config` (so it knows which accounts are available for git operations).
