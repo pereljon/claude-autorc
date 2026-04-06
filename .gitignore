@@ -9,6 +9,3 @@ Thumbs.db
 
 # Logs (generated at runtime, not part of the project)
 *.log
-
-# Temp files from launch scripts
-/tmp/claude-launch-*.sh

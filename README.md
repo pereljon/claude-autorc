@@ -57,7 +57,7 @@ claude-mux --version             # print version
 claude-mux --help                # show all options
 
 # Watch the log
-tail -f ~/Claude/claude-mux.log
+tail -f ~/Claude/claude-mux.log  # adjust path if BASE_DIR is customized
 ```
 
 When run from the terminal, output is mirrored to stdout in real time. When run via LaunchAgent, output goes to the log file only.
@@ -116,6 +116,6 @@ Most slash commands (e.g. `/model`, `/clear`) are not currently supported in RC 
 
 ## Logs
 
-- `~/Claude/claude-mux.log` — all script actions with UTC timestamps
+- `$BASE_DIR/claude-mux.log` — all script actions with UTC timestamps (default: `~/Claude/claude-mux.log`)
 
 For low-level LaunchAgent debugging, use Console.app or `log show`.

@@ -62,17 +62,19 @@ The script sources `~/.claude-mux-rc` after setting defaults, so any variable se
 
 ```
 1. Set defaults (BASE_DIR, AUTO_GIT_INIT, DEFAULT_PERMISSION_MODE, ALLOW_CROSS_SESSION_CONTROL)
-2. Create ~/.claude-mux-rc with commented defaults if it doesn't exist
-3. Source ~/.claude-mux-rc (user overrides apply from here on)
-4. Parse --dry-run flag
-5. Create BASE_DIR if it doesn't exist (exit cleanly in dry-run if missing)
-6. Discover CATEGORIES (subdirs of BASE_DIR not starting with . or -)
-7. 45-second startup delay (skipped in dry-run) for LaunchAgent login use
-8. Check dependencies (tmux, claude)
-9. Detect GitHub SSH accounts from ~/.ssh/config
-10. migrate_stray_sessions()
-11. For each CATEGORY: ensure_git_repo, create_claude_session
-12. For each project SUBDIR: ensure_git_repo, setup_gitignore, setup_default_mode, create_claude_session
+2. Parse flags (--dry-run, --status, --shutdown, --restart, -v/--version, -h/--help, SESSION_NAME)
+3. Create ~/.claude-mux-rc with commented defaults if it doesn't exist
+4. Source ~/.claude-mux-rc (user overrides apply from here on)
+5. If COMMAND=attach: attach to named tmux session and exit (switch-client inside tmux, attach outside)
+6. 45-second startup delay (skipped when stdout is a terminal or in dry-run) for LaunchAgent login use
+7. Check dependencies (tmux, claude)
+8. Dispatch: --status → status_claude_sessions, --shutdown → shutdown_claude_sessions, --restart → both
+9. For start: ensure BASE_DIR exists (exit cleanly in dry-run if missing)
+10. Discover CATEGORIES (subdirs of BASE_DIR not starting with . or -)
+11. Detect GitHub SSH accounts from ~/.ssh/config
+12. migrate_stray_sessions()
+13. For each CATEGORY: ensure_git_repo, create_claude_session
+14. For each project SUBDIR: ensure_git_repo, setup_gitignore, setup_default_mode, create_claude_session
 ```
 
 ### Functions

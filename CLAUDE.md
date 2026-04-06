@@ -56,7 +56,7 @@ claude-mux --restart             # shutdown then restart all sessions
 launchctl list | grep claude-mux
 
 # Check logs
-tail -f ~/Claude/claude-mux.log
+tail -f ~/Claude/claude-mux.log  # adjust path if BASE_DIR is customized
 
 # LaunchAgent debug (stdout/stderr go to macOS unified log, not a file)
 log show --predicate 'process == "launchd"' --last 5m | grep claude

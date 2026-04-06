@@ -41,10 +41,16 @@ EOF
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --base-dir)             BASE_DIR="$2"; shift 2 ;;
-        --bin-dir)              BIN_DIR="$2"; shift 2 ;;
+        --base-dir)
+            [[ $# -lt 2 ]] && { echo "ERROR: --base-dir requires a value" >&2; exit 1; }
+            BASE_DIR="$2"; shift 2 ;;
+        --bin-dir)
+            [[ $# -lt 2 ]] && { echo "ERROR: --bin-dir requires a value" >&2; exit 1; }
+            BIN_DIR="$2"; shift 2 ;;
         --auto-git-init)        AUTO_GIT_INIT=true; shift ;;
-        --permission-mode)      DEFAULT_PERMISSION_MODE="$2"; shift 2 ;;
+        --permission-mode)
+            [[ $# -lt 2 ]] && { echo "ERROR: --permission-mode requires a value" >&2; exit 1; }
+            DEFAULT_PERMISSION_MODE="$2"; shift 2 ;;
         --cross-session-control) ALLOW_CROSS_SESSION_CONTROL=true; shift ;;
         --no-launchagent)       INSTALL_LAUNCHAGENT=false; shift ;;
         -h|--help)              usage; exit 0 ;;
@@ -91,6 +97,12 @@ if [[ ! -w "$BIN_DIR" ]]; then
     exit 1
 fi
 
+# Warn if chosen bin dir is not in current PATH
+if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
+    echo "WARNING: $BIN_DIR is not in your current PATH."
+    echo "Add it to your shell profile (e.g. export PATH=\"$BIN_DIR:\$PATH\")"
+fi
+
 # ── Install binary ────────────────────────────────────────────────────────────
 
 echo "Installing claude-mux to $BIN_DIR/claude-mux..."
@@ -111,7 +123,10 @@ CONFIG_FILE="$HOME/.claude-mux-rc"
 if [[ ! -f "$CONFIG_FILE" ]]; then
     echo "Creating $CONFIG_FILE..."
 
-    # Format booleans and strings for config file
+    # Format settings: commented out when at default, active when customized
+    base_dir_line="BASE_DIR=\"${BASE_DIR}\""
+    [[ "$BASE_DIR" == "$DEFAULT_BASE_DIR" ]] && base_dir_line="#BASE_DIR=\"\$HOME/Claude\""
+
     git_init_line="AUTO_GIT_INIT=${AUTO_GIT_INIT}"
     [[ "$AUTO_GIT_INIT" == "false" ]] && git_init_line="#AUTO_GIT_INIT=false"
 
@@ -127,7 +142,7 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
 
 # Root directory containing category and project directories.
 # Default: \$HOME/Claude
-BASE_DIR="${BASE_DIR}"
+${base_dir_line}
 
 # Run git init and create .gitignore in project directories without a repo.
 # Default: false
@@ -160,12 +175,12 @@ if [[ "$INSTALL_LAUNCHAGENT" == "true" ]]; then
 
         if launchctl list | grep -q "com.user.claude-mux" 2>/dev/null; then
             echo "Unloading existing LaunchAgent..."
-            launchctl unload "$PLIST_DEST" 2>/dev/null || true
+            launchctl bootout "gui/$(id -u)" "$PLIST_DEST" 2>/dev/null || true
         fi
 
         echo "Installing LaunchAgent to $PLIST_DEST..."
         cp "$PLIST_SRC" "$PLIST_DEST"
-        launchctl load "$PLIST_DEST"
+        launchctl bootstrap "gui/$(id -u)" "$PLIST_DEST"
         echo "LaunchAgent installed and loaded."
     fi
 fi

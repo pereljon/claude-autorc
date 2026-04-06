@@ -54,7 +54,7 @@ Configuration:
   ~/.claude-mux-rc    User config file (created automatically on first run)
 
 Logs:
-  ~/Claude/claude-mux.log
+  \$BASE_DIR/claude-mux.log  (default: ~/Claude/claude-mux.log)
 EOF
 }
 
@@ -183,10 +183,53 @@ if [[ ! -x "$CLAUDE_BIN" ]]; then
     exit 1
 fi
 
+# ── Managed session names ─────────────────────────────────────────────────────
+# Build the set of session names that claude-mux would create, so --status and
+# --shutdown only act on sessions we manage (not unrelated tmux sessions).
+
+sanitize_session_name() {
+    echo "$1" | tr ' ' '-' | tr -cs 'a-zA-Z0-9-' '-' | sed 's/-\{2,\}/-/g' | sed 's/^-*//' | sed 's/-*$//'
+}
+
+get_managed_session_names() {
+    MANAGED_SESSIONS=()
+    [[ ! -d "$BASE_DIR" ]] && return
+
+    for _cat_dir in "$BASE_DIR"/*/; do
+        _cat_dir="${_cat_dir%/}"
+        _cat_name="$(basename "$_cat_dir")"
+        [[ ! -d "$_cat_dir" || "$_cat_name" == .* || "$_cat_name" == -* ]] && continue
+
+        # Category-level session
+        MANAGED_SESSIONS+=("$_cat_name")
+
+        # Project-level sessions
+        for _sub_dir in "$_cat_dir"/*/; do
+            _sub_dir="${_sub_dir%/}"
+            [[ ! -d "$_sub_dir" ]] && continue
+            _sub_name="$(basename "$_sub_dir")"
+            [[ "$_sub_name" == .* || "$_sub_name" == -* ]] && continue
+
+            local _sanitized
+            _sanitized="$(sanitize_session_name "$_sub_name")"
+            [[ -n "$_sanitized" ]] && MANAGED_SESSIONS+=("$_sanitized")
+        done
+    done
+}
+
+is_managed_session() {
+    local name="$1"
+    for managed in "${MANAGED_SESSIONS[@]}"; do
+        [[ "$name" == "$managed" ]] && return 0
+    done
+    return 1
+}
+
 # ── Shutdown ──────────────────────────────────────────────────────────────────
 
 shutdown_claude_sessions() {
     log "=== claude-mux shutdown starting (dry-run=${DRY_RUN}) ==="
+    get_managed_session_names
 
     local sessions
     sessions=$("$TMUX_BIN" list-sessions -F '#{session_name}' 2>/dev/null) || {
@@ -198,6 +241,7 @@ shutdown_claude_sessions() {
     local shutdown_count=0
     while IFS= read -r session; do
         [[ -z "$session" ]] && continue
+        is_managed_session "$session" || continue
         if claude_running_in_session "$session"; then
             log "Sending /exit to session '$session'"
             [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" send-keys -t "$session" "/exit" Enter
@@ -206,7 +250,7 @@ shutdown_claude_sessions() {
     done <<< "$sessions"
 
     if [[ $shutdown_count -eq 0 ]]; then
-        log "No Claude sessions found to shut down"
+        log "No managed Claude sessions found to shut down"
     else
         log "Sent /exit to $shutdown_count session(s)"
     fi
@@ -215,26 +259,33 @@ shutdown_claude_sessions() {
 }
 
 status_claude_sessions() {
+    get_managed_session_names
+
     local sessions
     sessions=$("$TMUX_BIN" list-sessions -F '#{session_name}' 2>/dev/null) || {
         echo "No tmux sessions found"
         return
     }
 
-    local running=0 stopped=0
+    local running=0 stopped=0 unmanaged=0
     while IFS= read -r session; do
         [[ -z "$session" ]] && continue
-        if claude_running_in_session "$session"; then
-            printf "  [running] %s\n" "$session"
-            (( running++ ))
+        if is_managed_session "$session"; then
+            if claude_running_in_session "$session"; then
+                printf "  [running] %s\n" "$session"
+                (( running++ ))
+            else
+                printf "  [stopped] %s\n" "$session"
+                (( stopped++ ))
+            fi
         else
-            printf "  [stopped] %s\n" "$session"
-            (( stopped++ ))
+            (( unmanaged++ ))
         fi
     done <<< "$sessions"
 
     echo ""
     echo "$running running, $stopped stopped"
+    [[ $unmanaged -gt 0 ]] && echo "($unmanaged non-managed tmux sessions hidden)"
 }
 
 # ── Functions ─────────────────────────────────────────────────────────────────
@@ -551,7 +602,7 @@ start_sessions() {
                 continue
             fi
 
-            session_name="$(echo "$dir_name" | tr ' ' '-' | tr -cs 'a-zA-Z0-9-' '-' | sed 's/-\{2,\}/-/g' | sed 's/^-*//' | sed 's/-*$//')"
+            session_name="$(sanitize_session_name "$dir_name")"
             if [[ "$session_name" != "$dir_name" ]]; then
                 log "Sanitized session name: '$dir_name' → '$session_name'"
             fi
