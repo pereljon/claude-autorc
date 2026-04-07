@@ -26,7 +26,7 @@ The LaunchAgent runs the script at login with a 45-second startup delay for syst
 - **Dynamic categories**: all top-level subdirs of `~/Claude/` (not starting with `.` or `-`) are treated as categories
 - **Session migration**: SIGTERMs Claude processes running outside tmux in managed directories; `claude -c` resumes them in the new tmux session
 - **Dry run**: `--dry-run` flag prints actions without executing (skips migration)
-- **Logging**: all actions appended to `~/Claude/claude-mux.log` (UTC ISO 8601)
+- **Logging**: all actions appended to `~/Library/Logs/claude-mux.log` (UTC ISO 8601, configurable via `LOG_DIR`)
 - **Auto-gitignore**: optionally creates `.gitignore` with common dev exclusions (secrets, tokens, .env, IDE, build artifacts)
 - **Default permission mode**: optionally sets Claude's `permissions.defaultMode` per project via `.claude/settings.local.json`
 - **Tmux-aware sessions**: each session gets `--append-system-prompt` with its tmux session name, so Claude knows how to send slash commands (e.g. `/model`, `/compact`) to itself via `tmux send-keys` (cross-session control available when `ALLOW_CROSS_SESSION_CONTROL=true`)
@@ -56,7 +56,7 @@ claude-mux --restart             # shutdown then restart all sessions
 launchctl list | grep claude-mux
 
 # Check logs
-tail -f ~/Claude/claude-mux.log  # adjust path if BASE_DIR is customized
+tail -f ~/Library/Logs/claude-mux.log
 
 # LaunchAgent debug (stdout/stderr go to macOS unified log, not a file)
 log show --predicate 'process == "launchd"' --last 5m | grep claude
@@ -82,6 +82,7 @@ The plist and `claude-mux-rc` follow the same pattern — edit in repo, copy to 
 `~/.claude-mux-rc` is the user config (not in this repo). A documented template is at `claude-mux-rc`. Key variables:
 
 - `BASE_DIR` — root directory (default: `~/Claude`)
+- `LOG_DIR` — directory for `claude-mux.log` (default: `~/Library/Logs`)
 - `AUTO_GIT_INIT` — run `git init` and create `.gitignore` in projects without a repo (default: `false`)
 - `DEFAULT_PERMISSION_MODE` — Claude permission mode per project (default: `auto`)
 - `ALLOW_CROSS_SESSION_CONTROL` — allow sessions to send commands to each other (default: `false`)

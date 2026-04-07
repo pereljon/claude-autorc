@@ -57,7 +57,7 @@ claude-mux --version             # print version
 claude-mux --help                # show all options
 
 # Watch the log
-tail -f ~/Claude/claude-mux.log  # adjust path if BASE_DIR is customized
+tail -f ~/Library/Logs/claude-mux.log
 ```
 
 When run from the terminal, output is mirrored to stdout in real time. When run via LaunchAgent, output goes to the log file only.
@@ -69,6 +69,7 @@ On first run, `~/.claude-mux-rc` is created automatically with all settings comm
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `BASE_DIR` | `$HOME/Claude` | Root directory containing category and project subdirectories |
+| `LOG_DIR` | `$HOME/Library/Logs` | Directory for the `claude-mux.log` file |
 | `AUTO_GIT_INIT` | `false` | Run `git init` and create a `.gitignore` in project directories that don't have a git repo |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set Claude's `permissions.defaultMode` in each project. Valid: `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`. Set to `""` to disable. |
 | `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions can send slash commands to other sessions via tmux — useful for multi-agent orchestration. When `false`, sessions can only command themselves. |
@@ -117,6 +118,6 @@ Most slash commands (e.g. `/model`, `/clear`) are not currently supported in RC 
 
 ## Logs
 
-- `$BASE_DIR/claude-mux.log` — all script actions with UTC timestamps (default: `~/Claude/claude-mux.log`)
+- `~/Library/Logs/claude-mux.log` — all script actions with UTC timestamps (configurable via `LOG_DIR`)
 
 For low-level LaunchAgent debugging, use Console.app or `log show`.

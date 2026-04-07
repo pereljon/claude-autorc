@@ -7,6 +7,10 @@
 # Default: $HOME/Claude
 #BASE_DIR="$HOME/Claude"
 
+# Directory for log files.
+# Default: $HOME/Library/Logs
+#LOG_DIR="$HOME/Library/Logs"
+
 # When true, run git init and create a .gitignore in project directories
 # that don't have a git repo.
 # Default: false

@@ -36,6 +36,7 @@ On first run, the script creates `~/.claude-mux-rc` with all settings commented 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `BASE_DIR` | `$HOME/Claude` | Root directory containing category and project directories |
+| `LOG_DIR` | `$HOME/Library/Logs` | Directory for the `claude-mux.log` file |
 | `AUTO_GIT_INIT` | `false` | Run `git init` and create a `.gitignore` in project directories that don't have a git repo |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set `permissions.defaultMode` in `.claude/settings.local.json` per project. Valid: `""` (disabled), `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions` |
 | `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions are told they can send slash commands to other sessions via tmux. When `false`, sessions can only send commands to themselves. |
@@ -225,7 +226,7 @@ If the result is empty (e.g. a directory named `*`), the directory is skipped wi
 
 ### Logging
 
-All output appended to `$BASE_DIR/claude-mux.log` with UTC timestamps in ISO 8601 format:
+All output appended to `$LOG_DIR/claude-mux.log` (default: `~/Library/Logs/claude-mux.log`) with UTC timestamps in ISO 8601 format:
 ```
 [2026-04-06T08:00:00Z] message
 ```
@@ -349,7 +350,7 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.user.claude-mux.plis
 launchctl list | grep claude-mux
 
 # Check logs
-tail -f ~/Claude/claude-mux.log
+tail -f ~/Library/Logs/claude-mux.log
 
 # Unload for debugging
 launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.user.claude-mux.plist
@@ -363,7 +364,7 @@ Restart the Mac. After login, wait 60 seconds, then verify:
 tmux list-sessions
 ```
 
-All sessions should be present. Check `~/Claude/claude-mux.log` for any errors.
+All sessions should be present. Check `~/Library/Logs/claude-mux.log` for any errors.
 
 ## Resolved Implementation Notes
 

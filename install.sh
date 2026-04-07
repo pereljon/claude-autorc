@@ -63,19 +63,15 @@ BASE_DIR="${BASE_DIR:-$DEFAULT_BASE_DIR}"
 # ── Find bin dir ──────────────────────────────────────────────────────────────
 
 find_bin_dir() {
+    # Prefer existing writable user bin directories
     local candidates=("$HOME/bin" "$HOME/.local/bin" "/usr/local/bin")
     for dir in "${candidates[@]}"; do
         if [[ -d "$dir" && -w "$dir" ]]; then
             echo "$dir"; return
         fi
     done
-    IFS=: read -ra path_dirs <<< "$PATH"
-    for dir in "${path_dirs[@]}"; do
-        if [[ -d "$dir" && -w "$dir" ]]; then
-            echo "$dir"; return
-        fi
-    done
-    echo ""
+    # Fall back to creating ~/.local/bin (standard XDG user bin)
+    echo "$HOME/.local/bin"
 }
 
 if [[ -z "$BIN_DIR" ]]; then
@@ -143,6 +139,10 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
 # Root directory containing category and project directories.
 # Default: \$HOME/Claude
 ${base_dir_line}
+
+# Directory for log files.
+# Default: \$HOME/Library/Logs
+#LOG_DIR="\$HOME/Library/Logs"
 
 # Run git init and create .gitignore in project directories without a repo.
 # Default: false
