@@ -257,23 +257,52 @@ shutdown_claude_sessions() {
         return
     }
 
-    local shutdown_count=0
+    # Send /exit to managed sessions where Claude is running
+    local exit_count=0
+    local managed_list=()
     while IFS= read -r session; do
         [[ -z "$session" ]] && continue
         is_managed_session "$session" || continue
+        managed_list+=("$session")
         if claude_running_in_session "$session"; then
             log "Sending /exit to session '$session'"
             [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" send-keys -t "$session" "/exit" Enter
-            (( shutdown_count++ ))
+            (( exit_count++ ))
         fi
     done <<< "$sessions"
 
-    if [[ $shutdown_count -eq 0 ]]; then
-        log "No managed Claude sessions found to shut down"
-    else
-        log "Sent /exit to $shutdown_count session(s)"
+    if [[ $exit_count -gt 0 ]]; then
+        log "Sent /exit to $exit_count session(s), waiting for Claude to exit..."
+        if [[ "$DRY_RUN" != "true" ]]; then
+            # Poll until Claude processes exit (max 30s)
+            _wait=0
+            while [[ $_wait -lt 30 ]]; do
+                _still_running=false
+                for _s in "${managed_list[@]}"; do
+                    if "$TMUX_BIN" has-session -t "$_s" 2>/dev/null && claude_running_in_session "$_s"; then
+                        _still_running=true
+                        break
+                    fi
+                done
+                [[ "$_still_running" != "true" ]] && break
+                sleep 1
+                (( _wait++ ))
+            done
+            [[ $_wait -ge 30 ]] && log "WARN: Some Claude sessions did not exit within 30s"
+        fi
     fi
 
+    # Kill managed tmux sessions
+    local kill_count=0
+    for session in "${managed_list[@]}"; do
+        if "$TMUX_BIN" has-session -t "$session" 2>/dev/null; then
+            log "Killing tmux session '$session'"
+            [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" kill-session -t "$session" 2>/dev/null
+            (( kill_count++ ))
+        fi
+    done
+
+    log "Shut down $kill_count managed session(s)"
     log "=== claude-mux shutdown complete ==="
 }
 
@@ -612,7 +641,7 @@ ensure_base_dir() {
 
 start_sessions() {
     log "=== claude-mux starting (dry-run=${DRY_RUN}) ==="
-    declare -A _session_dirs  # track session name → dir for collision detection
+    _seen_sessions=""  # newline-delimited "name|dir" pairs for collision detection
 
     ensure_base_dir
     discover_categories
@@ -642,11 +671,14 @@ start_sessions() {
             continue
         fi
 
-        if [[ -n "${_session_dirs[$cat_session]+x}" ]]; then
-            log "WARN: Session name '$cat_session' collision — '$CATEGORY_DIR' conflicts with '${_session_dirs[$cat_session]}', skipping"
+        local _existing
+        _existing=$(echo "$_seen_sessions" | grep "^${cat_session}|" | head -1)
+        if [[ -n "$_existing" ]]; then
+            log "WARN: Session name '$cat_session' collision — '$CATEGORY_DIR' conflicts with '${_existing#*|}', skipping"
             continue
         fi
-        _session_dirs[$cat_session]="$CATEGORY_DIR"
+        _seen_sessions="${_seen_sessions}${cat_session}|${CATEGORY_DIR}
+"
 
         ensure_git_repo "$CATEGORY_DIR"
         create_claude_session "$cat_session" "$CATEGORY_DIR"
@@ -670,11 +702,13 @@ start_sessions() {
                 continue
             fi
 
-            if [[ -n "${_session_dirs[$session_name]+x}" ]]; then
-                log "WARN: Session name '$session_name' collision — '$SUBDIR' conflicts with '${_session_dirs[$session_name]}', skipping"
+            _existing=$(echo "$_seen_sessions" | grep "^${session_name}|" | head -1)
+            if [[ -n "$_existing" ]]; then
+                log "WARN: Session name '$session_name' collision — '$SUBDIR' conflicts with '${_existing#*|}', skipping"
                 continue
             fi
-            _session_dirs[$session_name]="$SUBDIR"
+            _seen_sessions="${_seen_sessions}${session_name}|${SUBDIR}
+"
 
             ensure_git_repo "$SUBDIR"
             setup_gitignore "$SUBDIR"
