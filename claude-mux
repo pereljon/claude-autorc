@@ -28,10 +28,13 @@ ALLOW_CROSS_SESSION_CONTROL=false
 DRY_RUN=false
 COMMAND="start"
 TARGET_SESSION=""
+SEND_SESSION=""
+SEND_COMMAND=""
 LAUNCH_DIR=""
 NEW_PROJECT_DIR=""
 NEW_CREATE_PARENTS=false
 SHUTDOWN_SESSION=""
+RESTART_SESSION=""
 OVERRIDE_BASE_DIR=""
 
 usage() {
@@ -50,10 +53,11 @@ Commands:
   -d, --directory DIR   Launch a single Claude session in DIR and attach
   -n, --new DIR         Create a new Claude project in DIR and attach (DIR must exist)
   -p                    With -n, create the directory and parents if they don't exist
+  -s SESSION COMMAND    Send a slash command to a running session
   -t, --target SESSION  Attach to an existing tmux session by name
   -l, --list            Show all managed tmux sessions and their status
   --shutdown [SESSION]  Shut down all managed sessions, or a specific SESSION
-  --restart             Shutdown all managed sessions then start them again
+  --restart [SESSION]   Restart a specific session, or all that were running
 
 Options:
   --dry-run             Print actions without executing
@@ -89,7 +93,18 @@ while [[ $# -gt 0 ]]; do
                 shift
             fi
             ;;
-        --restart)        set_command "--restart" "restart"; shift ;;
+        --restart)
+            set_command "--restart" "restart"
+            if [[ $# -ge 2 && "$2" != -* ]]; then
+                RESTART_SESSION="$2"; shift 2
+            else
+                shift
+            fi
+            ;;
+        -s|--send)
+            [[ $# -lt 3 ]] && { echo "ERROR: -s requires SESSION and COMMAND" >&2; exit 1; }
+            set_command "-s" "send"
+            SEND_SESSION="$2"; SEND_COMMAND="$3"; shift 3 ;;
         -t|--target)
             [[ $# -lt 2 || "$2" == -* ]] && { echo "ERROR: -t requires a session name" >&2; exit 1; }
             set_command "-t" "attach"
@@ -191,6 +206,7 @@ LOG_FILE="$LOG_DIR/claude-mux.log"
 
 TMUX_BIN="/opt/homebrew/bin/tmux"
 CLAUDE_BIN="/opt/homebrew/bin/claude"
+CLAUDE_MUX_BIN="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 
 export PATH="/opt/homebrew/bin:$PATH"
 
@@ -246,6 +262,18 @@ attach_to_session() {
 
 if [[ "$COMMAND" == "attach" ]]; then
     attach_to_session "$TARGET_SESSION"
+fi
+
+# ── Send command to session ───────────────────────────────────────────────────
+
+if [[ "$COMMAND" == "send" ]]; then
+    if ! "$TMUX_BIN" has-session -t "$SEND_SESSION" 2>/dev/null; then
+        echo "No tmux session named '$SEND_SESSION'" >&2
+        echo "Run 'claude-mux -l' to see available sessions." >&2
+        exit 1
+    fi
+    "$TMUX_BIN" send-keys -t "$SEND_SESSION" "$SEND_COMMAND" Enter
+    exit 0
 fi
 
 # ── Validate -d / positional directory early ──────────────────────────────────
@@ -625,12 +653,13 @@ create_claude_session() {
     fi
 
     # Build system prompt
-    local tmux_prompt
+    local tmux_prompt mux_bin="${CLAUDE_MUX_BIN}"
+    local mux_cmds="You can send slash commands to yourself via: ${mux_bin} -s '${session_name}' '/command args'."
     if [[ "$ALLOW_CROSS_SESSION_CONTROL" == "true" ]]; then
-        tmux_prompt="You are running inside tmux session '${session_name}'. You can send slash commands to yourself or any other Claude session via: /opt/homebrew/bin/tmux send-keys -t <session-name> '/command args' Enter. To list all sessions: /opt/homebrew/bin/tmux list-sessions. To find your own session name: /opt/homebrew/bin/tmux display-message -p '#S'.${GITHUB_SSH_INFO}"
-    else
-        tmux_prompt="You are running inside tmux session '${session_name}'. You can send slash commands to yourself via: /opt/homebrew/bin/tmux send-keys -t '${session_name}' '/command args' Enter.${GITHUB_SSH_INFO}"
+        mux_cmds="You can send slash commands to yourself or any other Claude session via: ${mux_bin} -s SESSION '/command args'."
     fi
+    mux_cmds="${mux_cmds} Other claude-mux commands: ${mux_bin} -l (list sessions). ${mux_bin} -t SESSION (attach to session). ${mux_bin} -d DIRECTORY (launch session in directory). ${mux_bin} -n DIRECTORY (create new project). ${mux_bin} -n DIRECTORY -p (create new project with parents). ${mux_bin} --shutdown SESSION (shut down a session). ${mux_bin} --restart SESSION (restart a session)."
+    tmux_prompt="You are running inside tmux session '${session_name}'. ${mux_cmds}${GITHUB_SSH_INFO}"
 
     # Write the launch command to a temp script to avoid quoting complexity.
     # A trap inside the script guarantees cleanup even if claude exits unexpectedly.
@@ -883,23 +912,59 @@ case "$COMMAND" in
     list)     status_claude_sessions ;;
     shutdown) shutdown_claude_sessions ;;
     restart)
-        shutdown_claude_sessions
-        # Poll until all managed Claude processes have exited (max 30s)
-        get_managed_session_names
-        _wait=0
-        while [[ $_wait -lt 30 ]]; do
-            _still_running=false
-            for _s in "${MANAGED_SESSIONS[@]}"; do
-                if "$TMUX_BIN" has-session -t "$_s" 2>/dev/null && claude_running_in_session "$_s"; then
-                    _still_running=true
-                    break
+        if [[ -n "$RESTART_SESSION" ]]; then
+            # Single session restart
+            log "=== claude-mux restart: $RESTART_SESSION ==="
+            # Get working dir before killing the session
+            _restart_dir=$("$TMUX_BIN" display-message -t "$RESTART_SESSION" -p '#{pane_current_path}' 2>/dev/null)
+            if [[ -z "$_restart_dir" ]]; then
+                echo "ERROR: Session '$RESTART_SESSION' not found or cannot determine working directory" >&2
+                echo "Run 'claude-mux -l' to see available sessions." >&2
+                exit 1
+            fi
+            shutdown_single_session "$RESTART_SESSION"
+            detect_github_ssh_accounts
+            create_claude_session "$RESTART_SESSION" "$_restart_dir"
+            log "=== claude-mux restart complete ==="
+        else
+            # Full restart — remember which sessions had Claude running
+            log "=== claude-mux restart starting ==="
+            get_managed_session_names
+
+            # Capture running sessions and their working directories
+            _restart_list=""
+            _sessions=$("$TMUX_BIN" list-sessions -F '#{session_name}' 2>/dev/null) || _sessions=""
+            while IFS= read -r _s; do
+                [[ -z "$_s" ]] && continue
+                is_managed_session "$_s" || continue
+                if claude_running_in_session "$_s"; then
+                    _dir=$("$TMUX_BIN" display-message -t "$_s" -p '#{pane_current_path}' 2>/dev/null)
+                    [[ -n "$_dir" ]] && _restart_list="${_restart_list}${_s}|${_dir}
+"
                 fi
-            done
-            [[ "$_still_running" != "true" ]] && break
-            sleep 1
-            (( _wait++ ))
-        done
-        [[ $_wait -ge 30 ]] && log "WARN: Some Claude sessions did not exit within 30s — proceeding with restart"
-        start_sessions
+            done <<< "$_sessions"
+
+            if [[ -z "$_restart_list" ]]; then
+                log "No running Claude sessions to restart"
+                log "=== claude-mux restart complete ==="
+            else
+                # Count for logging
+                _count=$(echo "$_restart_list" | grep -c '|')
+                log "Remembering $_count running session(s) for restart"
+
+                # Shutdown all managed sessions
+                shutdown_claude_sessions
+
+                # Relaunch only the previously running sessions
+                detect_github_ssh_accounts
+                while IFS='|' read -r _name _dir; do
+                    [[ -z "$_name" ]] && continue
+                    log "Restarting session '$_name' in $_dir"
+                    create_claude_session "$_name" "$_dir"
+                done <<< "$_restart_list"
+
+                log "=== claude-mux restart complete ==="
+            fi
+        fi
         ;;
 esac
