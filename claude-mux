@@ -727,13 +727,17 @@ LAUNCH_EOF
     # Auto-accept the workspace trust prompt if it appears.
     # All directories managed by this script are the user's own projects.
     # Option 1 is pre-selected (❯); just send Enter to confirm.
+    log "Waiting for Claude to start in '$session_name'..."
     sleep 5
     if "$TMUX_BIN" capture-pane -t "$session_name" -p 2>/dev/null | grep -q "Yes, I trust this folder"; then
         log "Auto-accepting trust prompt for '$session_name'"
         "$TMUX_BIN" send-keys -t "$session_name" "" Enter
     fi
 
-    sleep "$SLEEP_BETWEEN"
+    # Delay between sessions in batch mode to avoid RC registration issues
+    if [[ "$COMMAND" == "start" ]]; then
+        sleep "$SLEEP_BETWEEN"
+    fi
 }
 
 # ── Migrate stray Claude sessions ─────────────────────────────────────────────
@@ -909,12 +913,51 @@ launch_single_session() {
 
     detect_github_ssh_accounts
     setup_default_mode "$LAUNCH_DIR"
-    create_claude_session "$LAUNCH_SESSION_NAME" "$LAUNCH_DIR"
 
     if [[ "$DRY_RUN" == "true" ]]; then
-        log "Dry run — skipping attach to '$LAUNCH_SESSION_NAME'"
+        log "Creating tmux session '$LAUNCH_SESSION_NAME' in $LAUNCH_DIR"
+        log "Dry run — skipping session creation and attach for '$LAUNCH_SESSION_NAME'"
         return
     fi
+
+    # If session already exists with Claude running, just attach
+    if "$TMUX_BIN" has-session -t "$LAUNCH_SESSION_NAME" 2>/dev/null; then
+        if claude_running_in_session "$LAUNCH_SESSION_NAME"; then
+            log "Session '$LAUNCH_SESSION_NAME' already running claude — attaching"
+            attach_to_session "$LAUNCH_SESSION_NAME"
+            return
+        fi
+        # Claude exited — kill old session, create fresh
+        log "Session '$LAUNCH_SESSION_NAME' exists but claude is not running — recreating"
+        "$TMUX_BIN" kill-session -t "$LAUNCH_SESSION_NAME" 2>/dev/null
+    fi
+
+    # Build system prompt
+    local mux_bin="${CLAUDE_MUX_BIN}"
+    local mux_cmds="You can send slash commands to yourself via: ${mux_bin} -s '${LAUNCH_SESSION_NAME}' '/command args'."
+    if [[ "$ALLOW_CROSS_SESSION_CONTROL" == "true" ]]; then
+        mux_cmds="You can send slash commands to yourself or any other Claude session via: ${mux_bin} -s SESSION '/command args'."
+    fi
+    mux_cmds="${mux_cmds} Other claude-mux commands: ${mux_bin} -l (list active sessions). ${mux_bin} -L (list all projects). ${mux_bin} -t SESSION (attach to session). ${mux_bin} -d DIRECTORY (launch session in directory). ${mux_bin} -n DIRECTORY (create new project). ${mux_bin} -n DIRECTORY -p (create new project with parents). ${mux_bin} --shutdown SESSION (shut down a session). ${mux_bin} --restart SESSION (restart a session). Always display command output to the user — do not run commands silently."
+    local tmux_prompt="You are running inside tmux session '${LAUNCH_SESSION_NAME}'. ${mux_cmds}${GITHUB_SSH_INFO}"
+
+    # Create tmux session that runs Claude directly (no send-keys)
+    log "Creating tmux session '$LAUNCH_SESSION_NAME' in $LAUNCH_DIR"
+
+    # Write prompt to file for clean argument passing
+    local prompt_file
+    prompt_file=$(mktemp /tmp/claude-prompt-XXXXXX)
+    printf '%s' "$tmux_prompt" > "$prompt_file"
+
+    # Create session with Claude as the initial command
+    "$TMUX_BIN" new-session -d -s "$LAUNCH_SESSION_NAME" -c "$LAUNCH_DIR" \
+        "bash -c 'trap \"rm -f ${prompt_file}\" EXIT; _prompt=\$(cat \"${prompt_file}\"); claude -c --remote-control --permission-mode auto --name \"${LAUNCH_SESSION_NAME}\" --append-system-prompt \"\$_prompt\" 2>/dev/null || claude --remote-control --permission-mode auto --name \"${LAUNCH_SESSION_NAME}\" --append-system-prompt \"\$_prompt\"'"
+
+    # Enable extended keys
+    if [[ "$TMUX_EXTENDED_KEYS" == "true" ]]; then
+        "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" extended-keys on 2>/dev/null
+    fi
+
     attach_to_session "$LAUNCH_SESSION_NAME"
 }
 
