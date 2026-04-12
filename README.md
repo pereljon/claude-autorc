@@ -167,9 +167,9 @@ Sessions must be authenticated (not showing "Not logged in"). After a clean auth
 
 The `/terminal-setup` command cannot run inside tmux. claude-mux enables tmux `extended-keys` by default (`TMUX_EXTENDED_KEYS=true`), which supports Shift+Enter in most modern terminals. If Shift+Enter doesn't work, use `\` + Return to enter newlines in your prompt.
 
-### Slash commands not available over Remote Control
+### Slash commands over Remote Control
 
-Most slash commands (e.g. `/model`, `/clear`) are not currently supported in RC sessions. This is a [known open issue](https://github.com/anthropics/claude-code/issues/30674).
+Slash commands (e.g. `/model`, `/clear`) are [not natively supported](https://github.com/anthropics/claude-code/issues/30674) in RC sessions. claude-mux works around this — each session is injected with `claude-mux -s` so Claude can send slash commands to itself via tmux.
 
 ## Logs
 
