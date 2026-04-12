@@ -130,7 +130,7 @@ On first run, `~/.claude-mux-rc` is created automatically with all settings comm
 | `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions can send slash commands to other sessions via tmux — useful for multi-agent orchestration. When `false`, sessions can only command themselves. |
 | `TMUX_EXTENDED_KEYS` | `true` | Enable tmux extended-keys for Shift+Enter and other modified key support (requires tmux 3.2+) |
 | `SLEEP_BETWEEN` | `5` | Seconds to wait between launching each session in batch mode. Increase if sessions fail to register with Remote Control. |
-| `LAUNCHAGENT_ENABLED` | `true` | When `false`, the LaunchAgent runs but exits without starting sessions. The installer sets this to `false` unless `--enable-launchagent` is passed. |
+| `LAUNCHAGENT_ENABLED` | `false` | When `true`, the LaunchAgent starts all managed sessions at login. Enable with `--enable-launchagent` during install, or set to `true` in the rc file. |
 
 ## Directory Structure
 

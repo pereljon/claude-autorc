@@ -33,5 +33,5 @@
 
 # Enable/disable batch startup via LaunchAgent (-a/--all).
 # When false, the LaunchAgent runs but exits without starting sessions.
-# Default: true
-#LAUNCHAGENT_ENABLED=true
+# Default: false
+#LAUNCHAGENT_ENABLED=false
