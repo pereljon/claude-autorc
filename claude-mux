@@ -55,7 +55,8 @@ Commands:
   -p                    With -n, create the directory and parents if they don't exist
   -s SESSION COMMAND    Send a slash command to a running session
   -t, --target SESSION  Attach to an existing tmux session by name
-  -l, --list            Show all managed tmux sessions and their status
+  -l, --list            Show active sessions (running and stopped)
+  -L                    Show all projects (active sessions + idle projects)
   --shutdown [SESSION]  Shut down all managed sessions, or a specific SESSION
   --restart [SESSION]   Restart a specific session, or all that were running
 
@@ -84,6 +85,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --dry-run)        DRY_RUN=true; shift ;;
         -l|--list)        set_command "-l" "list"; shift ;;
+        -L)               set_command "-L" "list-all"; shift ;;
         --shutdown)
             set_command "--shutdown" "shutdown"
             # Optional session name argument (next arg that doesn't start with -)
@@ -455,33 +457,59 @@ shutdown_claude_sessions() {
 }
 
 status_claude_sessions() {
+    local show_idle="${1:-false}"
     get_managed_session_names
+    discover_projects
 
     local sessions
-    sessions=$("$TMUX_BIN" list-sessions -F '#{session_name}' 2>/dev/null) || {
-        echo "No tmux sessions found"
-        return
-    }
+    sessions=$("$TMUX_BIN" list-sessions -F '#{session_name}' 2>/dev/null) || sessions=""
 
-    local running=0 stopped=0 unmanaged=0
-    while IFS= read -r session; do
-        [[ -z "$session" ]] && continue
-        if is_managed_session "$session"; then
-            if claude_running_in_session "$session"; then
-                printf "  [running] %s\n" "$session"
-                (( running++ ))
+    # Build set of active session names
+    local active_sessions=""
+    local running=0 stopped=0 unmanaged=0 idle=0
+
+    if [[ -n "$sessions" ]]; then
+        while IFS= read -r session; do
+            [[ -z "$session" ]] && continue
+            if is_managed_session "$session"; then
+                active_sessions="${active_sessions}${session}
+"
+                if claude_running_in_session "$session"; then
+                    printf "  [running] %s\n" "$session"
+                    (( running++ ))
+                else
+                    printf "  [stopped] %s\n" "$session"
+                    (( stopped++ ))
+                fi
             else
-                printf "  [stopped] %s\n" "$session"
-                (( stopped++ ))
+                (( unmanaged++ ))
             fi
-        else
-            (( unmanaged++ ))
-        fi
-    done <<< "$sessions"
+        done <<< "$sessions"
+    fi
+
+    # Show idle projects (have .claude but no tmux session)
+    if [[ "$show_idle" == "true" ]]; then
+        for _proj in "${PROJECT_DIRS[@]}"; do
+            local _name
+            _name="$(sanitize_session_name "$(basename "$_proj")")"
+            [[ -z "$_name" ]] && continue
+            # Skip if already shown as active
+            if echo "$active_sessions" | grep -qx "$_name"; then
+                continue
+            fi
+            printf "  [  idle ] %s  (%s)\n" "$_name" "$_proj"
+            (( idle++ ))
+        done
+    fi
 
     echo ""
-    echo "$running running, $stopped stopped"
+    if [[ "$show_idle" == "true" ]]; then
+        echo "$running running, $stopped stopped, $idle idle"
+    else
+        echo "$running running, $stopped stopped"
+    fi
     [[ $unmanaged -gt 0 ]] && echo "($unmanaged non-managed tmux sessions hidden)"
+    return 0
 }
 
 # ── Functions ─────────────────────────────────────────────────────────────────
@@ -910,6 +938,7 @@ case "$COMMAND" in
     launch)   launch_single_session ;;
     new)      create_new_project ;;
     list)     status_claude_sessions ;;
+    list-all) status_claude_sessions true ;;
     shutdown) shutdown_claude_sessions ;;
     restart)
         if [[ -n "$RESTART_SESSION" ]]; then
