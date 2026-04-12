@@ -686,7 +686,7 @@ create_claude_session() {
     if [[ "$ALLOW_CROSS_SESSION_CONTROL" == "true" ]]; then
         mux_cmds="You can send slash commands to yourself or any other Claude session via: ${mux_bin} -s SESSION '/command args'."
     fi
-    mux_cmds="${mux_cmds} Other claude-mux commands: ${mux_bin} -l (list sessions). ${mux_bin} -t SESSION (attach to session). ${mux_bin} -d DIRECTORY (launch session in directory). ${mux_bin} -n DIRECTORY (create new project). ${mux_bin} -n DIRECTORY -p (create new project with parents). ${mux_bin} --shutdown SESSION (shut down a session). ${mux_bin} --restart SESSION (restart a session)."
+    mux_cmds="${mux_cmds} Other claude-mux commands: ${mux_bin} -l (list active sessions). ${mux_bin} -L (list all projects). ${mux_bin} -t SESSION (attach to session). ${mux_bin} -d DIRECTORY (launch session in directory). ${mux_bin} -n DIRECTORY (create new project). ${mux_bin} -n DIRECTORY -p (create new project with parents). ${mux_bin} --shutdown SESSION (shut down a session). ${mux_bin} --restart SESSION (restart a session). Always display command output to the user — do not run commands silently."
     tmux_prompt="You are running inside tmux session '${session_name}'. ${mux_cmds}${GITHUB_SSH_INFO}"
 
     # Write the launch command to a temp script to avoid quoting complexity.
