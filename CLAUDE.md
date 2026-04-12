@@ -66,6 +66,10 @@ tail -f ~/Library/Logs/claude-mux.log
 log show --predicate 'process == "launchd"' --last 5m | grep claude
 ```
 
+## Communication standards
+
+When diagnosing issues, distinguish clearly between what you know and what you're guessing. Don't state theories as conclusions. Use language like "this could be", "one possibility is", or "I'm not sure, but" when you lack evidence. If you can't verify something, say so rather than presenting speculation as fact.
+
 ## Development workflow
 
 The script has two locations:
