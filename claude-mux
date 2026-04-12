@@ -23,6 +23,10 @@ DEFAULT_PERMISSION_MODE="auto"
 # commands to themselves — safer, prevents one session affecting others.
 ALLOW_CROSS_SESSION_CONTROL=false
 
+# When false, the LaunchAgent (-a/--all) exits without starting sessions.
+# Set to true to enable automatic batch startup at login.
+LAUNCHAGENT_ENABLED=true
+
 # ── Flag parsing ───────────────────────────────────────────────────────────────
 
 DRY_RUN=false
@@ -175,6 +179,11 @@ if [[ ! -f "$HOME/.claude-mux-rc" ]]; then
 # Increase if sessions fail to register with Remote Control.
 # Default: 5
 #SLEEP_BETWEEN=5
+
+# Enable/disable batch startup via LaunchAgent (-a/--all).
+# When false, the LaunchAgent runs but exits without starting sessions.
+# Default: true
+#LAUNCHAGENT_ENABLED=true
 CONFIG_EOF
     # Log to file if LOG_DIR exists (~/Library/Logs should always exist on macOS)
     if [[ -d "$LOG_DIR" ]]; then
@@ -815,6 +824,10 @@ ensure_base_dir() {
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 start_sessions() {
+    if [[ "$LAUNCHAGENT_ENABLED" == "false" ]]; then
+        log "LaunchAgent disabled via LAUNCHAGENT_ENABLED=false — exiting"
+        return
+    fi
     log "=== claude-mux starting (dry-run=${DRY_RUN}) ==="
     _seen_sessions=""  # newline-delimited "name|dir" pairs for collision detection
 

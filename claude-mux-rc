@@ -26,3 +26,8 @@
 # Increase if sessions fail to register with Remote Control.
 # Default: 5
 #SLEEP_BETWEEN=5
+
+# Enable/disable batch startup via LaunchAgent (-a/--all).
+# When false, the LaunchAgent runs but exits without starting sessions.
+# Default: true
+#LAUNCHAGENT_ENABLED=true
