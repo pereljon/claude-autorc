@@ -53,10 +53,13 @@ claude-mux -d ~/projects/my-app  # launch single session in a directory and atta
 claude-mux -n ~/projects/app     # create a new Claude project in existing dir and attach
 claude-mux -n ~/new/path/app -p  # same, but create the directory and parents first
 claude-mux -t my-app             # attach to an existing tmux session
-claude-mux -l                    # list managed sessions and their status
+claude-mux -s my-app '/model sonnet' # send a slash command to a session
+claude-mux -l                    # list active sessions (running + stopped)
+claude-mux -L                    # list all projects (active + idle)
 claude-mux --shutdown            # gracefully exit all managed Claude sessions
 claude-mux --shutdown my-app     # shut down a specific session
-claude-mux --restart             # shutdown then restart all managed sessions
+claude-mux --restart             # restart sessions that were running
+claude-mux --restart my-app      # restart a specific session
 claude-mux --dry-run             # preview actions without executing
 claude-mux --version             # print version
 claude-mux --help                # show all options
@@ -115,13 +118,15 @@ Each Claude session is launched with `--append-system-prompt` containing context
 You are running inside tmux session '<session-name>'.
 You can send slash commands to yourself via: /path/to/claude-mux -s '<session-name>' '/command args'.
 Other claude-mux commands:
-  /path/to/claude-mux -l                    (list sessions)
-  /path/to/claude-mux -t SESSION            (attach to session)
-  /path/to/claude-mux -d DIRECTORY          (launch session in directory)
-  /path/to/claude-mux -n DIRECTORY          (create new project)
-  /path/to/claude-mux -n DIRECTORY -p       (create new project with parents)
-  /path/to/claude-mux --shutdown SESSION    (shut down a session)
-  /path/to/claude-mux --restart SESSION     (restart a session)
+  /path/to/claude-mux -l                       (list active sessions)
+  /path/to/claude-mux -L                       (list all projects)
+  /path/to/claude-mux -t SESSION               (attach to session)
+  /path/to/claude-mux -d DIRECTORY             (launch session in directory)
+  /path/to/claude-mux -n DIRECTORY             (create new project)
+  /path/to/claude-mux -n DIRECTORY -p          (create new project with parents)
+  /path/to/claude-mux --shutdown SESSION       (shut down a session)
+  /path/to/claude-mux --restart SESSION        (restart a session)
+Always display command output to the user — do not run commands silently.
 GitHub SSH accounts configured in ~/.ssh/config: <accounts>.
 ```
 

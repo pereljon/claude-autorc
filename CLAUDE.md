@@ -49,11 +49,14 @@ claude-mux DIRECTORY             # use DIRECTORY as base dir (scan for .claude p
 claude-mux -d DIRECTORY          # launch single session in directory and attach
 claude-mux -n DIRECTORY          # create new project (git init, .gitignore) and attach
 claude-mux -n DIRECTORY -p       # same, creating directory and parents if needed
+claude-mux -s SESSION '/command'  # send a slash command to a session
 claude-mux -t SESSION            # attach to a session
-claude-mux -l                    # show session status
+claude-mux -l                    # list active sessions (running + stopped)
+claude-mux -L                    # list all projects (active + idle)
 claude-mux --shutdown            # gracefully exit all Claude sessions
 claude-mux --shutdown SESSION    # shut down a specific session
-claude-mux --restart             # shutdown then restart all sessions
+claude-mux --restart             # restart sessions that were running
+claude-mux --restart SESSION     # restart a specific session
 claude-mux --dry-run             # preview actions without executing
 
 # Verify LaunchAgent

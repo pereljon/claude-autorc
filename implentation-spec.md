@@ -71,7 +71,7 @@ The script sources `~/.claude-mux-rc` after setting defaults, so any variable se
 
 ```
 1. Set defaults (BASE_DIR, LOG_DIR, DEFAULT_PERMISSION_MODE, ALLOW_CROSS_SESSION_CONTROL)
-2. Parse flags (-d, -n, -p, -t, -l, --shutdown, --restart, --dry-run, -v, -h, positional DIRECTORY)
+2. Parse flags (-d, -n, -p, -s, -t, -l, -L, --shutdown, --restart, --dry-run, -v, -h, positional DIRECTORY)
 3. Validate mutual exclusion of commands; validate -p only with -n
 4. Create ~/.claude-mux-rc with commented defaults if it doesn't exist
 5. Source ~/.claude-mux-rc (user overrides apply from here on)
@@ -79,15 +79,18 @@ The script sources `~/.claude-mux-rc` after setting defaults, so any variable se
 7. Validate -d directory (resolve, check exists, sanitize name)
 8. Validate -n directory (resolve, sanitize name)
 9. If COMMAND=attach (-t): attach to named tmux session and exit
-10. 45-second startup delay (skipped when stdout is a terminal or in dry-run) for LaunchAgent login use
-11. Check dependencies (tmux, claude)
-12. Dispatch:
+10. If COMMAND=send (-s): send command to session via tmux send-keys and exit
+11. 45-second startup delay (skipped when stdout is a terminal or in dry-run) for LaunchAgent login use
+12. Check dependencies (tmux, claude)
+13. Dispatch:
     - start: discover_projects → migrate_stray_sessions → create sessions
     - launch (-d): migrate stray in target dir → create session → attach
     - new (-n): create dir (if -p) → git init → .gitignore → create session → attach
-    - list (-l): get_managed_session_names → show status
-    - shutdown: send /exit → poll → kill tmux sessions
-    - restart: shutdown → start
+    - send (-s): tmux send-keys to named session
+    - list (-l): show active sessions (running + stopped)
+    - list-all (-L): show all projects (active + idle)
+    - shutdown: send /exit → poll → kill tmux sessions (all managed, or specific session)
+    - restart: remember running sessions → shutdown → relaunch only those (or specific session)
 ```
 
 ### Functions
@@ -336,10 +339,10 @@ Test with one project directory:
 
 ```bash
 ~/Claude/claude-mux
-tmux list-sessions
+claude-mux -L
 ```
 
-Verify all expected sessions exist. Connect via `tmux attach -t <name>` and confirm Claude is running with the correct system prompt (check session name and GitHub SSH accounts).
+Verify all expected sessions are running. Connect via `claude-mux -t <name>` and confirm Claude is running with the correct system prompt (check session name, claude-mux commands, and GitHub SSH accounts).
 
 ### Phase 4: Session Migration
 
@@ -373,10 +376,10 @@ launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.user.claude-mux.plist
 Restart the Mac. After login, wait 60 seconds, then verify:
 
 ```bash
-tmux list-sessions
+claude-mux -L
 ```
 
-All sessions should be present. Check `~/Library/Logs/claude-mux.log` for any errors.
+All sessions should be running. Check `~/Library/Logs/claude-mux.log` for any errors.
 
 ## Resolved Implementation Notes
 
