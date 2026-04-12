@@ -107,6 +107,28 @@ Projects are discovered by the presence of a `.claude/` directory, at any depth:
 
 Session names are derived from directory names: spaces become hyphens, non-alphanumeric characters (except hyphens) are replaced, and leading/trailing hyphens are stripped. Directories whose name sanitizes to empty are skipped with a log warning.
 
+## Session System Prompt
+
+Each Claude session is launched with `--append-system-prompt` containing context about its environment. This is fully transparent — here is what gets injected:
+
+```
+You are running inside tmux session '<session-name>'.
+You can send slash commands to yourself via: /path/to/claude-mux -s '<session-name>' '/command args'.
+Other claude-mux commands:
+  /path/to/claude-mux -l                    (list sessions)
+  /path/to/claude-mux -t SESSION            (attach to session)
+  /path/to/claude-mux -d DIRECTORY          (launch session in directory)
+  /path/to/claude-mux -n DIRECTORY          (create new project)
+  /path/to/claude-mux -n DIRECTORY -p       (create new project with parents)
+  /path/to/claude-mux --shutdown SESSION    (shut down a session)
+  /path/to/claude-mux --restart SESSION     (restart a session)
+GitHub SSH accounts configured in ~/.ssh/config: <accounts>.
+```
+
+When `ALLOW_CROSS_SESSION_CONTROL=true`, the send command description changes to allow targeting any session, not just itself.
+
+The `/path/to/claude-mux` is the absolute path to the script at launch time, so sessions don't depend on `PATH` being set correctly.
+
 ## Troubleshooting
 
 ### Sessions show "Not logged in · Run /login"
