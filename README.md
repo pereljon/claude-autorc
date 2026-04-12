@@ -14,6 +14,8 @@ Each Claude session is injected with a system prompt containing all claude-mux c
 
 Sessions are also injected with their tmux session name and any GitHub SSH accounts found in `~/.ssh/config`.
 
+### Batch Mode
+
 With `claude-mux -a` (or via the LaunchAgent at login), it runs in batch mode:
 
 1. Finds all Claude projects under `~/Claude/` — any directory containing a `.claude/` subdirectory, at any depth
