@@ -89,8 +89,8 @@ The script sources `~/.claude-mux-rc` after setting defaults, so any variable se
     - send (-s): tmux send-keys to named session
     - list (-l): show active sessions (running + stopped)
     - list-all (-L): show all projects (active + idle)
-    - shutdown: send /exit → poll → kill tmux sessions (all managed, or specific session)
-    - restart: remember running sessions → shutdown → relaunch only those (or specific session)
+    - shutdown: send /exit → poll → kill tmux sessions (all managed, or specific session(s))
+    - restart: remember running sessions → shutdown → relaunch only those (or specific session(s))
 ```
 
 ### Functions

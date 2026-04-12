@@ -54,9 +54,9 @@ claude-mux -t SESSION            # attach to a session
 claude-mux -l                    # list active sessions (running + stopped)
 claude-mux -L                    # list all projects (active + idle)
 claude-mux --shutdown            # gracefully exit all Claude sessions
-claude-mux --shutdown SESSION    # shut down a specific session
+claude-mux --shutdown SESSION...  # shut down specific session(s)
 claude-mux --restart             # restart sessions that were running
-claude-mux --restart SESSION     # restart a specific session
+claude-mux --restart SESSION...  # restart specific session(s)
 claude-mux --dry-run             # preview actions without executing
 
 # Verify LaunchAgent

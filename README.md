@@ -64,8 +64,10 @@ claude-mux -l                    # list active sessions (running + stopped)
 claude-mux -L                    # list all projects (active + idle)
 claude-mux --shutdown            # gracefully exit all managed Claude sessions
 claude-mux --shutdown my-app     # shut down a specific session
+claude-mux --shutdown a b c      # shut down multiple sessions
 claude-mux --restart             # restart sessions that were running
 claude-mux --restart my-app      # restart a specific session
+claude-mux --restart a b c       # restart multiple sessions
 claude-mux --dry-run             # preview actions without executing
 claude-mux --version             # print version
 claude-mux --help                # show all options

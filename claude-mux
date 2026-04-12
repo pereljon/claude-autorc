@@ -41,8 +41,8 @@ SEND_COMMAND=""
 LAUNCH_DIR=""
 NEW_PROJECT_DIR=""
 NEW_CREATE_PARENTS=false
-SHUTDOWN_SESSION=""
-RESTART_SESSION=""
+SHUTDOWN_SESSIONS=()
+RESTART_SESSIONS=()
 
 usage() {
     cat << EOF
@@ -64,8 +64,8 @@ Commands:
   -t, --target SESSION  Attach to an existing tmux session by name
   -l, --list            Show active sessions (running and stopped)
   -L                    Show all projects (active sessions + idle projects)
-  --shutdown [SESSION]  Shut down all managed sessions, or a specific SESSION
-  --restart [SESSION]   Restart a specific session, or all that were running
+  --shutdown [SESSION...]  Shut down all managed sessions, or specific session(s)
+  --restart [SESSION...]   Restart specific session(s), or all that were running
 
 Options:
   --dry-run             Print actions without executing
@@ -96,20 +96,18 @@ while [[ $# -gt 0 ]]; do
         -L)               set_command "-L" "list-all"; shift ;;
         --shutdown)
             set_command "--shutdown" "shutdown"
-            # Optional session name argument (next arg that doesn't start with -)
-            if [[ $# -ge 2 && "$2" != -* ]]; then
-                SHUTDOWN_SESSION="$2"; shift 2
-            else
-                shift
-            fi
+            shift
+            # Consume all following non-flag args as session names
+            while [[ $# -gt 0 && "$1" != -* ]]; do
+                SHUTDOWN_SESSIONS+=("$1"); shift
+            done
             ;;
         --restart)
             set_command "--restart" "restart"
-            if [[ $# -ge 2 && "$2" != -* ]]; then
-                RESTART_SESSION="$2"; shift 2
-            else
-                shift
-            fi
+            shift
+            while [[ $# -gt 0 && "$1" != -* ]]; do
+                RESTART_SESSIONS+=("$1"); shift
+            done
             ;;
         -s|--send)
             [[ $# -lt 3 ]] && { echo "ERROR: -s requires SESSION and COMMAND" >&2; exit 1; }
@@ -404,9 +402,11 @@ shutdown_single_session() {
 shutdown_claude_sessions() {
     log "=== claude-mux shutdown starting (dry-run=${DRY_RUN}) ==="
 
-    # Single session shutdown
-    if [[ -n "$SHUTDOWN_SESSION" ]]; then
-        shutdown_single_session "$SHUTDOWN_SESSION"
+    # Named session(s) shutdown
+    if [[ ${#SHUTDOWN_SESSIONS[@]} -gt 0 ]]; then
+        for _sess in "${SHUTDOWN_SESSIONS[@]}"; do
+            shutdown_single_session "$_sess"
+        done
         log "=== claude-mux shutdown complete ==="
         return
     fi
@@ -1035,19 +1035,20 @@ case "$COMMAND" in
     list-all) status_claude_sessions true ;;
     shutdown) shutdown_claude_sessions ;;
     restart)
-        if [[ -n "$RESTART_SESSION" ]]; then
-            # Single session restart
-            log "=== claude-mux restart: $RESTART_SESSION ==="
-            # Get working dir before killing the session
-            _restart_dir=$("$TMUX_BIN" display-message -t "$RESTART_SESSION" -p '#{pane_current_path}' 2>/dev/null)
-            if [[ -z "$_restart_dir" ]]; then
-                echo "ERROR: Session '$RESTART_SESSION' not found or cannot determine working directory" >&2
-                echo "Run 'claude-mux -l' to see available sessions." >&2
-                exit 1
-            fi
-            shutdown_single_session "$RESTART_SESSION"
+        if [[ ${#RESTART_SESSIONS[@]} -gt 0 ]]; then
+            # Named session(s) restart
+            log "=== claude-mux restart: ${RESTART_SESSIONS[*]} ==="
             detect_github_ssh_accounts
-            create_claude_session "$RESTART_SESSION" "$_restart_dir"
+            for _rs in "${RESTART_SESSIONS[@]}"; do
+                _restart_dir=$("$TMUX_BIN" display-message -t "$_rs" -p '#{pane_current_path}' 2>/dev/null)
+                if [[ -z "$_restart_dir" ]]; then
+                    echo "ERROR: Session '$_rs' not found or cannot determine working directory" >&2
+                    echo "Run 'claude-mux -l' to see available sessions." >&2
+                    continue
+                fi
+                shutdown_single_session "$_rs"
+                create_claude_session "$_rs" "$_restart_dir"
+            done
             log "=== claude-mux restart complete ==="
         else
             # Full restart — remember which sessions had Claude running
