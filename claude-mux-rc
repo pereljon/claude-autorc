@@ -3,18 +3,13 @@
 # For manual setup, copy this file to ~/.claude-mux-rc and uncomment settings to override defaults.
 # This file is sourced by claude-mux at startup.
 
-# Root directory containing category and project directories.
+# Root directory to scan for Claude projects (directories containing .claude/).
 # Default: $HOME/Claude
 #BASE_DIR="$HOME/Claude"
 
 # Directory for log files.
 # Default: $HOME/Library/Logs
 #LOG_DIR="$HOME/Library/Logs"
-
-# When true, run git init and create a .gitignore in project directories
-# that don't have a git repo.
-# Default: false
-#AUTO_GIT_INIT=false
 
 # Set Claude's permissions.defaultMode for each project via .claude/settings.local.json.
 # Valid values: "" (disabled), "default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"

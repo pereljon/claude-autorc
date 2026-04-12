@@ -6,19 +6,28 @@ A shell script and macOS LaunchAgent that automatically creates and maintains pe
 
 ## Directory Structure (Expected)
 
+Projects are discovered by the presence of a `.claude/` directory, at any depth under BASE_DIR:
+
 ```
 ~/Claude/                          ← BASE_DIR (configurable)
-├── work/                          ← category (any top-level dir not starting with . or -)
-│   ├── project-a/
-│   ├── project-b/
-│   └── -archived-thing/           ← excluded (starts with -)
-├── personal/                      ← category
-│   ├── project-c/
-│   └── project-d/
-└── -old/                          ← excluded (starts with -)
+├── work/
+│   ├── project-a/                 ← ✓ has .claude/ — managed
+│   │   └── .claude/
+│   ├── project-b/                 ← ✓ has .claude/ — managed
+│   │   └── .claude/
+│   └── -archived/                 ← ✗ excluded (starts with -)
+├── personal/
+│   ├── project-c/                 ← ✓ has .claude/ — managed
+│   │   └── .claude/
+│   └── project-d/                 ← ✗ no .claude/ — not a project
+├── deep/nested/project/           ← ✓ found at any depth
+│   └── .claude/
+└── ignored/                       ← ✗ excluded (.ignore-claudemux)
+    ├── .claude/
+    └── .ignore-claudemux
 ```
 
-Categories are discovered dynamically — any subdirectory of `BASE_DIR` not starting with `.` or `-`.
+Exclusion rules: hidden directories (`.`-prefixed) are pruned from search, directories starting with `-` are skipped, directories containing `.ignore-claudemux` are skipped.
 
 ## Deliverables
 
@@ -35,9 +44,8 @@ On first run, the script creates `~/.claude-mux-rc` with all settings commented 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `BASE_DIR` | `$HOME/Claude` | Root directory containing category and project directories |
+| `BASE_DIR` | `$HOME/Claude` | Root directory to scan for Claude projects (directories containing `.claude/`) |
 | `LOG_DIR` | `$HOME/Library/Logs` | Directory for the `claude-mux.log` file |
-| `AUTO_GIT_INIT` | `false` | Run `git init` and create a `.gitignore` in project directories that don't have a git repo |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set `permissions.defaultMode` in `.claude/settings.local.json` per project. Valid: `""` (disabled), `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions` |
 | `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions are told they can send slash commands to other sessions via tmux. When `false`, sessions can only send commands to themselves. |
 
@@ -62,20 +70,24 @@ The script sources `~/.claude-mux-rc` after setting defaults, so any variable se
 ### Startup Sequence
 
 ```
-1. Set defaults (BASE_DIR, AUTO_GIT_INIT, DEFAULT_PERMISSION_MODE, ALLOW_CROSS_SESSION_CONTROL)
-2. Parse flags (--dry-run, --status, --shutdown, --restart, -v/--version, -h/--help, SESSION_NAME)
-3. Create ~/.claude-mux-rc with commented defaults if it doesn't exist
-4. Source ~/.claude-mux-rc (user overrides apply from here on)
-5. If COMMAND=attach: attach to named tmux session and exit (switch-client inside tmux, attach outside)
-6. 45-second startup delay (skipped when stdout is a terminal or in dry-run) for LaunchAgent login use
-7. Check dependencies (tmux, claude)
-8. Dispatch: --status → status_claude_sessions, --shutdown → shutdown_claude_sessions, --restart → both
-9. For start: ensure BASE_DIR exists (exit cleanly in dry-run if missing)
-10. Discover CATEGORIES (subdirs of BASE_DIR not starting with . or -)
-11. Detect GitHub SSH accounts from ~/.ssh/config
-12. migrate_stray_sessions()
-13. For each CATEGORY: ensure_git_repo, create_claude_session
-14. For each project SUBDIR: ensure_git_repo, setup_gitignore, setup_default_mode, create_claude_session
+1. Set defaults (BASE_DIR, LOG_DIR, DEFAULT_PERMISSION_MODE, ALLOW_CROSS_SESSION_CONTROL)
+2. Parse flags (-d, -n, -p, -t, -l, --shutdown, --restart, --dry-run, -v, -h, positional DIRECTORY)
+3. Validate mutual exclusion of commands; validate -p only with -n
+4. Create ~/.claude-mux-rc with commented defaults if it doesn't exist
+5. Source ~/.claude-mux-rc (user overrides apply from here on)
+6. Apply positional BASE_DIR override if provided
+7. Validate -d directory (resolve, check exists, sanitize name)
+8. Validate -n directory (resolve, sanitize name)
+9. If COMMAND=attach (-t): attach to named tmux session and exit
+10. 45-second startup delay (skipped when stdout is a terminal or in dry-run) for LaunchAgent login use
+11. Check dependencies (tmux, claude)
+12. Dispatch:
+    - start: discover_projects → migrate_stray_sessions → create sessions
+    - launch (-d): migrate stray in target dir → create session → attach
+    - new (-n): create dir (if -p) → git init → .gitignore → create session → attach
+    - list (-l): get_managed_session_names → show status
+    - shutdown: send /exit → poll → kill tmux sessions
+    - restart: shutdown → start
 ```
 
 ### Functions
@@ -84,7 +96,7 @@ The script sources `~/.claude-mux-rc` after setting defaults, so any variable se
 
 Skipped entirely in `--dry-run` mode.
 
-Finds `claude` CLI processes (matched by full path `/opt/homebrew/bin/claude`) not running under a tmux ancestor, whose working directory is at or under a managed category directory. SIGTERMs them so the main loop can resume them via `claude -c`. Waits 2 seconds after termination only if any processes were killed.
+Finds `claude` CLI processes (matched by full path `/opt/homebrew/bin/claude`) not running under a tmux ancestor, whose working directory matches a discovered project directory. SIGTERMs them so the main loop can resume them via `claude -c`. Waits 2 seconds after termination only if any processes were killed.
 
 ```
 migrate_stray_sessions():
@@ -114,7 +126,7 @@ Runs `git init` if `$dir/.git` does not exist. Logged and skipped in dry-run.
 
 #### setup_gitignore(dir)
 
-If `AUTO_GIT_INIT=true` and no `.gitignore` exists, creates one with common exclusions (secrets, credentials, Claude settings, OS, IDE, dependencies, build artifacts). Skips if file already exists.
+If no `.gitignore` exists, creates one with common exclusions (secrets, credentials, Claude settings, OS, IDE, dependencies, build artifacts). Skips if file already exists. Called by `-n` (new project) only.
 
 #### setup_default_mode(dir)
 
@@ -145,7 +157,7 @@ claude --remote-control --permission-mode auto --name '<session_name>' --append-
 
 After sending the launch command, the script waits 5 seconds and checks for the workspace trust prompt. If found, it sends Enter to accept (option 1 is pre-selected). All managed directories are the user's own projects.
 
-### AUTO_GIT_INIT gitignore template
+### Gitignore template (used by -n)
 
 ```
 # Secrets and credentials
@@ -208,7 +220,7 @@ Skip any subdirectory where the directory name:
 - Starts with `.` (hidden directories, includes `.claude`)
 - Starts with `-` (user convention for excluded/archived folders)
 
-Applies at both the category level (subdirs of `BASE_DIR`) and project level (subdirs of each category).
+Applies to each discovered project directory.
 
 ### Session Name Sanitization
 
@@ -282,11 +294,11 @@ In `--dry-run` mode, output goes to stdout only (not the log file).
 | Directory has no `.git` | Script runs `git init` before launching Claude |
 | tmux session already exists with claude running | Skip, log, continue to next |
 | Claude exited but tmux session still alive | Detect via process tree check; relaunch claude into existing session |
-| Category directory missing | Log warning, skip to next category |
-| No category directories found | Log warning, exit cleanly |
+| No Claude projects found | Log warning, exit cleanly |
 | BASE_DIR does not exist | Created automatically (dry-run: exit cleanly with warning) |
-| Folder name starts with `-` | Excluded at category and project level |
-| Folder name starts with `.` | Excluded at category and project level |
+| Folder name starts with `-` | Excluded from discovery |
+| Folder name starts with `.` | Excluded from discovery (hidden directories pruned) |
+| `.ignore-claudemux` present | Project excluded from discovery |
 | Folder name contains spaces or special chars | Session name sanitized (spaces→hyphens, specials stripped); original path used as working dir |
 | Folder name sanitizes to empty string (e.g. `*`) | Logged as warning, skipped |
 | Script re-run after adding new project | Creates session for new folder, skips existing sessions |

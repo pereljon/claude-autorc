@@ -7,16 +7,11 @@ VERSION="1.0.0"
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux-rc
 
-# Root directory containing category and project directories.
+# Root directory to scan for Claude projects (directories containing .claude/).
 BASE_DIR="$HOME/Claude"
 
 # Directory for log files.
 LOG_DIR="$HOME/Library/Logs"
-
-# When true, run git init in project directories that don't have a .git repo,
-# and create a .gitignore with common dev exclusions if one doesn't exist.
-# Disabled by default.
-AUTO_GIT_INIT=false
 
 # When set to a valid mode, create/update .claude/settings.local.json
 # to set permissions.defaultMode for the project.
@@ -34,6 +29,8 @@ DRY_RUN=false
 COMMAND="start"
 TARGET_SESSION=""
 LAUNCH_DIR=""
+NEW_PROJECT_DIR=""
+NEW_CREATE_PARENTS=false
 SHUTDOWN_SESSION=""
 OVERRIDE_BASE_DIR=""
 
@@ -51,6 +48,8 @@ Commands:
   (no args)             Start all managed sessions under \$BASE_DIR
   DIRECTORY             Use DIRECTORY as the base dir (scan its subdirs for projects)
   -d, --directory DIR   Launch a single Claude session in DIR and attach
+  -n, --new DIR         Create a new Claude project in DIR and attach (DIR must exist)
+  -p                    With -n, create the directory and parents if they don't exist
   -t, --target SESSION  Attach to an existing tmux session by name
   -l, --list            Show all managed tmux sessions and their status
   --shutdown [SESSION]  Shut down all managed sessions, or a specific SESSION
@@ -69,12 +68,20 @@ Logs:
 EOF
 }
 
+set_command() {
+    if [[ "$COMMAND" != "start" ]]; then
+        echo "ERROR: Conflicting options — cannot combine $1 with previous command" >&2
+        exit 1
+    fi
+    COMMAND="$2"
+}
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --dry-run)        DRY_RUN=true; shift ;;
-        -l|--list)        COMMAND="list"; shift ;;
+        -l|--list)        set_command "-l" "list"; shift ;;
         --shutdown)
-            COMMAND="shutdown"
+            set_command "--shutdown" "shutdown"
             # Optional session name argument (next arg that doesn't start with -)
             if [[ $# -ge 2 && "$2" != -* ]]; then
                 SHUTDOWN_SESSION="$2"; shift 2
@@ -82,24 +89,41 @@ while [[ $# -gt 0 ]]; do
                 shift
             fi
             ;;
-        --restart)        COMMAND="restart"; shift ;;
+        --restart)        set_command "--restart" "restart"; shift ;;
         -t|--target)
-            [[ $# -lt 2 ]] && { echo "ERROR: -t requires a session name" >&2; exit 1; }
-            TARGET_SESSION="$2"; COMMAND="attach"; shift 2 ;;
+            [[ $# -lt 2 || "$2" == -* ]] && { echo "ERROR: -t requires a session name" >&2; exit 1; }
+            set_command "-t" "attach"
+            TARGET_SESSION="$2"; shift 2 ;;
         -d|--directory)
-            [[ $# -lt 2 ]] && { echo "ERROR: -d requires a directory path" >&2; exit 1; }
-            LAUNCH_DIR="$2"; COMMAND="launch"; shift 2 ;;
+            [[ $# -lt 2 || "$2" == -* ]] && { echo "ERROR: -d requires a directory path" >&2; exit 1; }
+            set_command "-d" "launch"
+            LAUNCH_DIR="$2"; shift 2 ;;
+        -n|--new)
+            [[ $# -lt 2 || "$2" == -* ]] && { echo "ERROR: -n requires a directory path" >&2; exit 1; }
+            set_command "-n" "new"
+            NEW_PROJECT_DIR="$2"; shift 2 ;;
+        -p)               NEW_CREATE_PARENTS=true; shift ;;
         -v|--version)     echo "claude-mux $VERSION"; exit 0 ;;
         -h|--help)        usage; exit 0 ;;
         -*)               echo "Unknown option: $1" >&2; echo >&2; usage >&2; exit 1 ;;
         *)
-            # Positional arg = override BASE_DIR
+            # Positional arg = override BASE_DIR (only valid with start command)
+            if [[ "$COMMAND" != "start" ]]; then
+                echo "ERROR: Unexpected argument '$1' — cannot combine with $COMMAND command" >&2
+                exit 1
+            fi
             if [[ -n "$OVERRIDE_BASE_DIR" ]]; then
                 echo "Unexpected argument: $1" >&2; echo >&2; usage >&2; exit 1
             fi
             OVERRIDE_BASE_DIR="$1"; shift ;;
     esac
 done
+
+# Validate -p only with -n
+if [[ "$NEW_CREATE_PARENTS" == "true" && "$COMMAND" != "new" ]]; then
+    echo "ERROR: -p can only be used with -n" >&2
+    exit 1
+fi
 
 # ── User config (overrides defaults above) ────────────────────────────────────
 
@@ -109,18 +133,13 @@ if [[ ! -f "$HOME/.claude-mux-rc" ]]; then
 # Generated on first run. Uncomment and edit settings to override defaults.
 # This file is sourced by claude-mux at startup.
 
-# Root directory containing category and project directories.
+# Root directory to scan for Claude projects (directories containing .claude/).
 # Default: $HOME/Claude
 #BASE_DIR="$HOME/Claude"
 
 # Directory for log files.
 # Default: $HOME/Library/Logs
 #LOG_DIR="$HOME/Library/Logs"
-
-# When true, run git init in project directories that don't have a .git repo,
-# and create a .gitignore with common dev exclusions if one doesn't exist.
-# Default: false
-#AUTO_GIT_INIT=false
 
 # Set Claude's permissions.defaultMode for each project via .claude/settings.local.json.
 # Valid values: "" (disabled), "default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"
@@ -204,6 +223,10 @@ claude_running_in_session() {
     echo "$tree_cmds" | grep -q "claude"
 }
 
+sanitize_session_name() {
+    echo "$1" | tr ' ' '-' | tr -cs 'a-zA-Z0-9-' '-' | sed 's/-\{2,\}/-/g' | sed 's/^-*//' | sed 's/-*$//'
+}
+
 # ── Attach helper ─────────────────────────────────────────────────────────────
 
 attach_to_session() {
@@ -225,7 +248,7 @@ if [[ "$COMMAND" == "attach" ]]; then
     attach_to_session "$TARGET_SESSION"
 fi
 
-# ── Launch single session in directory ────────────────────────────────────────
+# ── Validate -d / positional directory early ──────────────────────────────────
 
 if [[ "$COMMAND" == "launch" ]]; then
     # Resolve to absolute path
@@ -235,56 +258,36 @@ if [[ "$COMMAND" == "launch" ]]; then
             exit 1
         }
     fi
-
     if [[ ! -d "$LAUNCH_DIR" ]]; then
         echo "ERROR: No such directory: $LAUNCH_DIR" >&2
         exit 1
     fi
-
-    local_session_name="$(sanitize_session_name "$(basename "$LAUNCH_DIR")")"
-    if [[ -z "$local_session_name" ]]; then
+    LAUNCH_SESSION_NAME="$(sanitize_session_name "$(basename "$LAUNCH_DIR")")"
+    if [[ -z "$LAUNCH_SESSION_NAME" ]]; then
         echo "ERROR: Directory name sanitizes to empty: $(basename "$LAUNCH_DIR")" >&2
         exit 1
     fi
-
-    # Migrate stray Claude running in this directory (not in tmux)
-    _stray_pids=$(pgrep -f "$CLAUDE_BIN" 2>/dev/null) || _stray_pids=""
-    while IFS= read -r _pid; do
-        [[ -z "$_pid" ]] && continue
-
-        # Check if already in tmux
-        _check_pid="$_pid"
-        _in_tmux=false
-        while [[ "$_check_pid" -gt 1 ]]; do
-            _parent_cmd=$(ps -o comm= -p "$_check_pid" 2>/dev/null) || break
-            if [[ "$_parent_cmd" == tmux* ]]; then
-                _in_tmux=true; break
-            fi
-            _check_pid=$(ps -o ppid= -p "$_check_pid" 2>/dev/null | tr -d ' ') || break
-        done
-        [[ "$_in_tmux" == "true" ]] && continue
-
-        # Check if cwd matches our target directory
-        _cwd=$(lsof -p "$_pid" -a -d cwd -Fn 2>/dev/null | grep '^n' | cut -c2-)
-        if [[ "$_cwd" == "$LAUNCH_DIR" ]]; then
-            log "Migrating stray Claude (pid=$_pid) from $LAUNCH_DIR into tmux"
-            kill -TERM "$_pid" 2>/dev/null
-            sleep 2
-        fi
-    done <<< "$_stray_pids"
-
-    # Apply rc settings
-    detect_github_ssh_accounts
-    setup_default_mode "$LAUNCH_DIR"
-
-    # Launch (create_claude_session handles existing sessions)
-    create_claude_session "$local_session_name" "$LAUNCH_DIR"
-
-    # Attach
-    attach_to_session "$local_session_name"
 fi
 
-# ── Startup delay (LaunchAgent only — no terminal attached) ───────────────────
+# ── Validate -n directory early ───────────────────────────────────────────────
+
+if [[ "$COMMAND" == "new" ]]; then
+    # Resolve to absolute path (directory may not exist yet)
+    if [[ "$NEW_PROJECT_DIR" != /* ]]; then
+        _parent="$(cd "$(dirname "$NEW_PROJECT_DIR")" 2>/dev/null && pwd)" || {
+            echo "ERROR: Cannot resolve parent directory: $(dirname "$NEW_PROJECT_DIR")" >&2
+            exit 1
+        }
+        NEW_PROJECT_DIR="$_parent/$(basename "$NEW_PROJECT_DIR")"
+    fi
+    NEW_SESSION_NAME="$(sanitize_session_name "$(basename "$NEW_PROJECT_DIR")")"
+    if [[ -z "$NEW_SESSION_NAME" ]]; then
+        echo "ERROR: Directory name sanitizes to empty: $(basename "$NEW_PROJECT_DIR")" >&2
+        exit 1
+    fi
+fi
+
+# ─�� Startup delay (LaunchAgent only — no terminal attached) ───────────────────
 
 if [[ "$COMMAND" == "start" && ! -t 1 && "$DRY_RUN" != "true" ]]; then
     # LaunchAgent only — delay for system services to initialize
@@ -305,38 +308,16 @@ if [[ ! -x "$CLAUDE_BIN" ]]; then
 fi
 
 # ── Managed session names ─────────────────────────────────────────────────────
-# Build the set of session names that claude-mux would create, so --status and
+# Build the set of session names that claude-mux would create, so -l and
 # --shutdown only act on sessions we manage (not unrelated tmux sessions).
-
-sanitize_session_name() {
-    echo "$1" | tr ' ' '-' | tr -cs 'a-zA-Z0-9-' '-' | sed 's/-\{2,\}/-/g' | sed 's/^-*//' | sed 's/-*$//'
-}
 
 get_managed_session_names() {
     MANAGED_SESSIONS=()
-    [[ ! -d "$BASE_DIR" ]] && return
-
-    for _cat_dir in "$BASE_DIR"/*/; do
-        _cat_dir="${_cat_dir%/}"
-        _cat_name="$(basename "$_cat_dir")"
-        [[ ! -d "$_cat_dir" || "$_cat_name" == .* || "$_cat_name" == -* ]] && continue
-
-        # Category-level session (sanitized like project names)
-        local _cat_sanitized
-        _cat_sanitized="$(sanitize_session_name "$_cat_name")"
-        [[ -n "$_cat_sanitized" ]] && MANAGED_SESSIONS+=("$_cat_sanitized")
-
-        # Project-level sessions
-        for _sub_dir in "$_cat_dir"/*/; do
-            _sub_dir="${_sub_dir%/}"
-            [[ ! -d "$_sub_dir" ]] && continue
-            _sub_name="$(basename "$_sub_dir")"
-            [[ "$_sub_name" == .* || "$_sub_name" == -* ]] && continue
-
-            local _sanitized
-            _sanitized="$(sanitize_session_name "$_sub_name")"
-            [[ -n "$_sanitized" ]] && MANAGED_SESSIONS+=("$_sanitized")
-        done
+    discover_projects
+    for _proj in "${PROJECT_DIRS[@]}"; do
+        local _sanitized
+        _sanitized="$(sanitize_session_name "$(basename "$_proj")")"
+        [[ -n "$_sanitized" ]] && MANAGED_SESSIONS+=("$_sanitized")
     done
 }
 
@@ -479,7 +460,6 @@ status_claude_sessions() {
 
 ensure_git_repo() {
     local dir="$1"
-    [[ "$AUTO_GIT_INIT" != "true" ]] && return
     if [[ ! -d "$dir/.git" && ! -f "$dir/.git" ]]; then
         log "Initializing git repo in $dir"
         if [[ "$DRY_RUN" != "true" ]]; then
@@ -490,8 +470,6 @@ ensure_git_repo() {
 
 setup_gitignore() {
     local dir="$1"
-    [[ "$AUTO_GIT_INIT" != "true" ]] && return
-
     if [[ -f "$dir/.gitignore" ]]; then
         log "Gitignore already exists in $dir, skipping"
         return
@@ -691,16 +669,11 @@ LAUNCH_EOF
 
 # ── Migrate stray Claude sessions ─────────────────────────────────────────────
 # Finds claude CLI processes not running inside tmux whose cwd is under a
-# managed category directory, SIGTERMs them, then lets the main loop resume
+# managed project directory, SIGTERMs them, then lets the main loop resume
 # them inside tmux via claude -c.
 
 migrate_stray_sessions() {
     [[ "$DRY_RUN" == "true" ]] && return
-
-    local managed_dirs=()
-    for cat in "${CATEGORIES[@]}"; do
-        managed_dirs+=("$BASE_DIR/$cat")
-    done
 
     local pids
     pids=$(pgrep -f "$CLAUDE_BIN" 2>/dev/null) || return 0
@@ -725,14 +698,14 @@ migrate_stray_sessions() {
 
         [[ "$in_tmux" == "true" ]] && continue
 
-        # Get working directory — filter for 'n' (name) lines from lsof -Fn output
+        # Get working directory
         local cwd
         cwd=$(lsof -p "$pid" -a -d cwd -Fn 2>/dev/null | grep '^n' | cut -c2-)
         [[ -z "$cwd" ]] && continue
 
-        # Migrate if cwd is at or anywhere under a managed category directory
+        # Migrate if cwd matches any discovered project directory
         local is_managed=false
-        for managed in "${managed_dirs[@]}"; do
+        for managed in "${PROJECT_DIRS[@]}"; do
             if [[ "$cwd" == "$managed" || "$cwd" == "$managed/"* ]]; then
                 is_managed=true
                 break
@@ -746,22 +719,37 @@ migrate_stray_sessions() {
         found_any=true
     done <<< "$pids"
 
-    # Wait for terminated processes to exit cleanly before creating tmux sessions
     [[ "$found_any" == "true" ]] && sleep 2
 }
 
-# ── Discover category directories ─────────────────────────────────────────────
-# Any subdir of BASE_DIR not starting with '.' or '-' is treated as a category.
+# ── Discover Claude projects ──────────────────────────────────────────────────
+# Finds all directories under BASE_DIR that contain a .claude/ subdirectory.
+# Skips directories whose name starts with '-' and directories containing
+# .ignore-claudemux. Hidden directories (starting with '.') are pruned
+# from the search tree.
 
-discover_categories() {
-    CATEGORIES=()
-    for _dir in "$BASE_DIR"/*/; do
-        _dir="${_dir%/}"
-        _name="$(basename "$_dir")"
-        if [[ -d "$_dir" && "$_name" != .* && "$_name" != -* ]]; then
-            CATEGORIES+=("$_name")
-        fi
-    done
+discover_projects() {
+    PROJECT_DIRS=()
+    [[ ! -d "$BASE_DIR" ]] && return
+
+    while IFS= read -r claude_dir; do
+        [[ -z "$claude_dir" ]] && continue
+        local project_dir
+        project_dir="$(dirname "$claude_dir")"
+
+        # Skip BASE_DIR itself if it has .claude
+        [[ "$project_dir" == "$BASE_DIR" ]] && continue
+
+        # Skip if directory name starts with -
+        local dir_name
+        dir_name="$(basename "$project_dir")"
+        [[ "$dir_name" == -* ]] && continue
+
+        # Skip if .ignore-claudemux exists
+        [[ -f "$project_dir/.ignore-claudemux" ]] && continue
+
+        PROJECT_DIRS+=("$project_dir")
+    done < <(find "$BASE_DIR" -name ".*" -not -name ".claude" -prune -o -name "-*" -prune -o -name ".claude" -type d -print 2>/dev/null | sort)
 }
 
 # ── Ensure base directory exists ───────────────────────────────────────────────
@@ -783,84 +771,115 @@ start_sessions() {
     _seen_sessions=""  # newline-delimited "name|dir" pairs for collision detection
 
     ensure_base_dir
-    discover_categories
+    discover_projects
     detect_github_ssh_accounts
     [[ -n "$GITHUB_SSH_INFO" ]] && log "Detected GitHub SSH accounts:${GITHUB_SSH_INFO}"
 
-    if [[ "${#CATEGORIES[@]}" -eq 0 ]]; then
-        log "WARN: No category directories found under $BASE_DIR — nothing to do"
+    if [[ "${#PROJECT_DIRS[@]}" -eq 0 ]]; then
+        log "WARN: No Claude projects found under $BASE_DIR (no .claude directories) — nothing to do"
         log "=== claude-mux complete ==="
         return
     fi
 
+    log "Found ${#PROJECT_DIRS[@]} Claude project(s)"
     migrate_stray_sessions
 
-    for CATEGORY in "${CATEGORIES[@]}"; do
-        CATEGORY_DIR="$BASE_DIR/$CATEGORY"
+    for PROJECT_DIR in "${PROJECT_DIRS[@]}"; do
+        dir_name="$(basename "$PROJECT_DIR")"
 
-        if [[ ! -d "$CATEGORY_DIR" ]]; then
-            log "WARN: $CATEGORY_DIR not found, skipping"
+        session_name="$(sanitize_session_name "$dir_name")"
+        if [[ "$session_name" != "$dir_name" ]]; then
+            log "Sanitized session name: '$dir_name' → '$session_name'"
+        fi
+        if [[ -z "$session_name" ]]; then
+            log "Skipping '$dir_name': name is empty after sanitization"
             continue
         fi
 
-        local cat_session
-        cat_session="$(sanitize_session_name "$CATEGORY")"
-        if [[ -z "$cat_session" ]]; then
-            log "Skipping category '$CATEGORY': name is empty after sanitization"
-            continue
-        fi
-
-        local _existing
-        _existing=$(echo "$_seen_sessions" | grep "^${cat_session}|" | head -1)
+        _existing=$(echo "$_seen_sessions" | grep "^${session_name}|" | head -1)
         if [[ -n "$_existing" ]]; then
-            log "WARN: Session name '$cat_session' collision — '$CATEGORY_DIR' conflicts with '${_existing#*|}', skipping"
+            log "WARN: Session name '$session_name' collision — '$PROJECT_DIR' conflicts with '${_existing#*|}', skipping"
             continue
         fi
-        _seen_sessions="${_seen_sessions}${cat_session}|${CATEGORY_DIR}
+        _seen_sessions="${_seen_sessions}${session_name}|${PROJECT_DIR}
 "
 
-        ensure_git_repo "$CATEGORY_DIR"
-        create_claude_session "$cat_session" "$CATEGORY_DIR"
-
-        for SUBDIR in "$CATEGORY_DIR"/*/; do
-            SUBDIR="${SUBDIR%/}"
-            [[ ! -d "$SUBDIR" ]] && continue
-            dir_name="$(basename "$SUBDIR")"
-
-            if [[ "$dir_name" == .* ]] || [[ "$dir_name" == -* ]]; then
-                log "Skipping excluded directory: $SUBDIR"
-                continue
-            fi
-
-            session_name="$(sanitize_session_name "$dir_name")"
-            if [[ "$session_name" != "$dir_name" ]]; then
-                log "Sanitized session name: '$dir_name' → '$session_name'"
-            fi
-            if [[ -z "$session_name" ]]; then
-                log "Skipping '$dir_name': name is empty after sanitization"
-                continue
-            fi
-
-            _existing=$(echo "$_seen_sessions" | grep "^${session_name}|" | head -1)
-            if [[ -n "$_existing" ]]; then
-                log "WARN: Session name '$session_name' collision — '$SUBDIR' conflicts with '${_existing#*|}', skipping"
-                continue
-            fi
-            _seen_sessions="${_seen_sessions}${session_name}|${SUBDIR}
-"
-
-            ensure_git_repo "$SUBDIR"
-            setup_gitignore "$SUBDIR"
-            setup_default_mode "$SUBDIR"
-            create_claude_session "$session_name" "$SUBDIR"
-        done
+        setup_default_mode "$PROJECT_DIR"
+        create_claude_session "$session_name" "$PROJECT_DIR"
     done
 
     log "=== claude-mux complete ==="
 }
 
+launch_single_session() {
+    log "=== claude-mux launch: $LAUNCH_DIR ==="
+
+    # Migrate stray Claude running in this directory (not in tmux)
+    _stray_pids=$(pgrep -f "$CLAUDE_BIN" 2>/dev/null) || _stray_pids=""
+    while IFS= read -r _pid; do
+        [[ -z "$_pid" ]] && continue
+        _check_pid="$_pid"
+        _in_tmux=false
+        while [[ "$_check_pid" -gt 1 ]]; do
+            _parent_cmd=$(ps -o comm= -p "$_check_pid" 2>/dev/null) || break
+            if [[ "$_parent_cmd" == tmux* ]]; then _in_tmux=true; break; fi
+            _check_pid=$(ps -o ppid= -p "$_check_pid" 2>/dev/null | tr -d ' ') || break
+        done
+        [[ "$_in_tmux" == "true" ]] && continue
+        _cwd=$(lsof -p "$_pid" -a -d cwd -Fn 2>/dev/null | grep '^n' | cut -c2-)
+        if [[ "$_cwd" == "$LAUNCH_DIR" ]]; then
+            log "Migrating stray Claude (pid=$_pid) from $LAUNCH_DIR into tmux"
+            kill -TERM "$_pid" 2>/dev/null
+            sleep 2
+        fi
+    done <<< "$_stray_pids"
+
+    detect_github_ssh_accounts
+    setup_default_mode "$LAUNCH_DIR"
+    create_claude_session "$LAUNCH_SESSION_NAME" "$LAUNCH_DIR"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log "Dry run — skipping attach to '$LAUNCH_SESSION_NAME'"
+        return
+    fi
+    attach_to_session "$LAUNCH_SESSION_NAME"
+}
+
+create_new_project() {
+    log "=== claude-mux new project: $NEW_PROJECT_DIR ==="
+
+    # Create directory or error
+    if [[ ! -d "$NEW_PROJECT_DIR" ]]; then
+        if [[ "$NEW_CREATE_PARENTS" != "true" ]]; then
+            echo "ERROR: Directory does not exist: $NEW_PROJECT_DIR" >&2
+            echo "Use -p to create the directory and any missing parents." >&2
+            exit 1
+        fi
+        log "Creating directory $NEW_PROJECT_DIR"
+        if [[ "$DRY_RUN" != "true" ]]; then
+            mkdir -p "$NEW_PROJECT_DIR"
+        fi
+    fi
+
+    # Initialize git repo and gitignore
+    ensure_git_repo "$NEW_PROJECT_DIR"
+    setup_gitignore "$NEW_PROJECT_DIR"
+    setup_default_mode "$NEW_PROJECT_DIR"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log "Dry run — skipping session creation and attach for '$NEW_SESSION_NAME'"
+        return
+    fi
+
+    detect_github_ssh_accounts
+    create_claude_session "$NEW_SESSION_NAME" "$NEW_PROJECT_DIR"
+    attach_to_session "$NEW_SESSION_NAME"
+}
+
 case "$COMMAND" in
     start)    start_sessions ;;
+    launch)   launch_single_session ;;
+    new)      create_new_project ;;
     list)     status_claude_sessions ;;
     shutdown) shutdown_claude_sessions ;;
     restart)
