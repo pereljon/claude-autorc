@@ -47,12 +47,15 @@ The LaunchAgent runs the script at login with a 45-second startup delay to allow
 ## Usage
 
 ```bash
-claude-mux                       # start all sessions
-claude-mux project-name          # attach to a session
-claude-mux --status              # show session status
+claude-mux                       # start all managed sessions under BASE_DIR
+claude-mux ~/projects             # use ~/projects as the base dir instead
+claude-mux -d ~/projects/my-app  # launch single session in a directory and attach
+claude-mux -t my-app             # attach to an existing tmux session
+claude-mux -l                    # list managed sessions and their status
+claude-mux --shutdown            # gracefully exit all managed Claude sessions
+claude-mux --shutdown my-app     # shut down a specific session
+claude-mux --restart             # shutdown then restart all managed sessions
 claude-mux --dry-run             # preview actions without executing
-claude-mux --shutdown            # gracefully exit all Claude sessions
-claude-mux --restart             # shutdown then restart all sessions
 claude-mux --version             # print version
 claude-mux --help                # show all options
 

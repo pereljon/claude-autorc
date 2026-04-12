@@ -32,7 +32,10 @@ ALLOW_CROSS_SESSION_CONTROL=false
 
 DRY_RUN=false
 COMMAND="start"
-ATTACH_SESSION=""
+TARGET_SESSION=""
+LAUNCH_DIR=""
+SHUTDOWN_SESSION=""
+OVERRIDE_BASE_DIR=""
 
 usage() {
     cat << EOF
@@ -40,21 +43,26 @@ claude-mux — Claude Code Multiplexer
 Persistent Claude Code sessions for all your projects.
 
 Usage: claude-mux [OPTIONS]
-       claude-mux SESSION_NAME
+       claude-mux [OPTIONS] DIRECTORY
+       claude-mux -d DIRECTORY
+       claude-mux -t SESSION
+
+Commands:
+  (no args)             Start all managed sessions under \$BASE_DIR
+  DIRECTORY             Use DIRECTORY as the base dir (scan its subdirs for projects)
+  -d, --directory DIR   Launch a single Claude session in DIR and attach
+  -t, --target SESSION  Attach to an existing tmux session by name
+  -l, --list            Show all managed tmux sessions and their status
+  --shutdown [SESSION]  Shut down all managed sessions, or a specific SESSION
+  --restart             Shutdown all managed sessions then start them again
 
 Options:
-  --dry-run     Print actions without executing (no sessions created or modified)
-  --status      Show all managed tmux sessions and whether Claude is running in each
-  --shutdown    Gracefully shut down all Claude tmux sessions (sends /exit to each)
-  --restart     Shutdown all Claude sessions then start them again
-  -v, --version Print version and exit
-  -h, --help    Show this help message
-
-Arguments:
-  SESSION_NAME  Attach to the named tmux session (uses switch-client inside tmux)
+  --dry-run             Print actions without executing
+  -v, --version         Print version and exit
+  -h, --help            Show this help message
 
 Configuration:
-  ~/.claude-mux-rc    User config file (created automatically on first run)
+  ~/.claude-mux-rc      User config file (created automatically on first run)
 
 Logs:
   \$LOG_DIR/claude-mux.log  (default: ~/Library/Logs/claude-mux.log)
@@ -64,17 +72,32 @@ EOF
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --dry-run)        DRY_RUN=true; shift ;;
-        --status)         COMMAND="status"; shift ;;
-        --shutdown)       COMMAND="shutdown"; shift ;;
+        -l|--list)        COMMAND="list"; shift ;;
+        --shutdown)
+            COMMAND="shutdown"
+            # Optional session name argument (next arg that doesn't start with -)
+            if [[ $# -ge 2 && "$2" != -* ]]; then
+                SHUTDOWN_SESSION="$2"; shift 2
+            else
+                shift
+            fi
+            ;;
         --restart)        COMMAND="restart"; shift ;;
+        -t|--target)
+            [[ $# -lt 2 ]] && { echo "ERROR: -t requires a session name" >&2; exit 1; }
+            TARGET_SESSION="$2"; COMMAND="attach"; shift 2 ;;
+        -d|--directory)
+            [[ $# -lt 2 ]] && { echo "ERROR: -d requires a directory path" >&2; exit 1; }
+            LAUNCH_DIR="$2"; COMMAND="launch"; shift 2 ;;
         -v|--version)     echo "claude-mux $VERSION"; exit 0 ;;
         -h|--help)        usage; exit 0 ;;
         -*)               echo "Unknown option: $1" >&2; echo >&2; usage >&2; exit 1 ;;
         *)
-            if [[ -n "$ATTACH_SESSION" ]]; then
+            # Positional arg = override BASE_DIR
+            if [[ -n "$OVERRIDE_BASE_DIR" ]]; then
                 echo "Unexpected argument: $1" >&2; echo >&2; usage >&2; exit 1
             fi
-            ATTACH_SESSION="$1"; COMMAND="attach"; shift ;;
+            OVERRIDE_BASE_DIR="$1"; shift ;;
     esac
 done
 
@@ -124,6 +147,22 @@ fi
 # shellcheck source=/dev/null
 source "$HOME/.claude-mux-rc"
 
+# Apply positional BASE_DIR override (takes precedence over rc file)
+if [[ -n "$OVERRIDE_BASE_DIR" ]]; then
+    # Resolve to absolute path
+    if [[ "$OVERRIDE_BASE_DIR" != /* ]]; then
+        OVERRIDE_BASE_DIR="$(cd "$OVERRIDE_BASE_DIR" 2>/dev/null && pwd)" || {
+            echo "ERROR: Cannot resolve directory: $OVERRIDE_BASE_DIR" >&2
+            exit 1
+        }
+    fi
+    if [[ ! -d "$OVERRIDE_BASE_DIR" ]]; then
+        echo "ERROR: No such directory: $OVERRIDE_BASE_DIR" >&2
+        exit 1
+    fi
+    BASE_DIR="$OVERRIDE_BASE_DIR"
+fi
+
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 # Seconds to wait between launching each session (mitigates RC registration issues).
@@ -165,25 +204,90 @@ claude_running_in_session() {
     echo "$tree_cmds" | grep -q "claude"
 }
 
-# ── Attach to session ─────────────────────────────────────────────────────────
+# ── Attach helper ─────────────────────────────────────────────────────────────
 
-if [[ "$COMMAND" == "attach" ]]; then
-    if ! "$TMUX_BIN" has-session -t "$ATTACH_SESSION" 2>/dev/null; then
-        echo "No tmux session named '$ATTACH_SESSION'" >&2
-        echo "Run 'claude-mux --status' to see available sessions." >&2
+attach_to_session() {
+    local session_name="$1"
+    if ! "$TMUX_BIN" has-session -t "$session_name" 2>/dev/null; then
+        echo "No tmux session named '$session_name'" >&2
+        echo "Run 'claude-mux -l' to see available sessions." >&2
         exit 1
     fi
     # $TMUX_PANE is set by tmux in child processes — use it to detect if we're inside tmux
     if [[ -n "${TMUX_PANE:-}" ]]; then
-        exec "$TMUX_BIN" switch-client -t "$ATTACH_SESSION"
+        exec "$TMUX_BIN" switch-client -t "$session_name"
     else
-        exec "$TMUX_BIN" attach-session -t "$ATTACH_SESSION"
+        exec "$TMUX_BIN" attach-session -t "$session_name"
     fi
+}
+
+if [[ "$COMMAND" == "attach" ]]; then
+    attach_to_session "$TARGET_SESSION"
+fi
+
+# ── Launch single session in directory ────────────────────────────────────────
+
+if [[ "$COMMAND" == "launch" ]]; then
+    # Resolve to absolute path
+    if [[ "$LAUNCH_DIR" != /* ]]; then
+        LAUNCH_DIR="$(cd "$LAUNCH_DIR" 2>/dev/null && pwd)" || {
+            echo "ERROR: Cannot resolve directory: $LAUNCH_DIR" >&2
+            exit 1
+        }
+    fi
+
+    if [[ ! -d "$LAUNCH_DIR" ]]; then
+        echo "ERROR: No such directory: $LAUNCH_DIR" >&2
+        exit 1
+    fi
+
+    local_session_name="$(sanitize_session_name "$(basename "$LAUNCH_DIR")")"
+    if [[ -z "$local_session_name" ]]; then
+        echo "ERROR: Directory name sanitizes to empty: $(basename "$LAUNCH_DIR")" >&2
+        exit 1
+    fi
+
+    # Migrate stray Claude running in this directory (not in tmux)
+    _stray_pids=$(pgrep -f "$CLAUDE_BIN" 2>/dev/null) || _stray_pids=""
+    while IFS= read -r _pid; do
+        [[ -z "$_pid" ]] && continue
+
+        # Check if already in tmux
+        _check_pid="$_pid"
+        _in_tmux=false
+        while [[ "$_check_pid" -gt 1 ]]; do
+            _parent_cmd=$(ps -o comm= -p "$_check_pid" 2>/dev/null) || break
+            if [[ "$_parent_cmd" == tmux* ]]; then
+                _in_tmux=true; break
+            fi
+            _check_pid=$(ps -o ppid= -p "$_check_pid" 2>/dev/null | tr -d ' ') || break
+        done
+        [[ "$_in_tmux" == "true" ]] && continue
+
+        # Check if cwd matches our target directory
+        _cwd=$(lsof -p "$_pid" -a -d cwd -Fn 2>/dev/null | grep '^n' | cut -c2-)
+        if [[ "$_cwd" == "$LAUNCH_DIR" ]]; then
+            log "Migrating stray Claude (pid=$_pid) from $LAUNCH_DIR into tmux"
+            kill -TERM "$_pid" 2>/dev/null
+            sleep 2
+        fi
+    done <<< "$_stray_pids"
+
+    # Apply rc settings
+    detect_github_ssh_accounts
+    setup_default_mode "$LAUNCH_DIR"
+
+    # Launch (create_claude_session handles existing sessions)
+    create_claude_session "$local_session_name" "$LAUNCH_DIR"
+
+    # Attach
+    attach_to_session "$local_session_name"
 fi
 
 # ── Startup delay (LaunchAgent only — no terminal attached) ───────────────────
 
 if [[ "$COMMAND" == "start" && ! -t 1 && "$DRY_RUN" != "true" ]]; then
+    # LaunchAgent only — delay for system services to initialize
     log "Waiting 45 seconds for system services to initialize..."
     sleep 45
 fi
@@ -246,8 +350,44 @@ is_managed_session() {
 
 # ── Shutdown ──────────────────────────────────────────────────────────────────
 
+# Gracefully exit Claude and kill a single tmux session
+shutdown_single_session() {
+    local session="$1"
+    if ! "$TMUX_BIN" has-session -t "$session" 2>/dev/null; then
+        log "No tmux session named '$session'"
+        return
+    fi
+    if claude_running_in_session "$session"; then
+        log "Sending /exit to session '$session'"
+        [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" send-keys -t "$session" "/exit" Enter
+        # Poll until Claude exits (max 30s)
+        if [[ "$DRY_RUN" != "true" ]]; then
+            _wait=0
+            while [[ $_wait -lt 30 ]]; do
+                "$TMUX_BIN" has-session -t "$session" 2>/dev/null && claude_running_in_session "$session" || break
+                sleep 1
+                (( _wait++ ))
+            done
+            [[ $_wait -ge 30 ]] && log "WARN: Claude in '$session' did not exit within 30s"
+        fi
+    fi
+    if "$TMUX_BIN" has-session -t "$session" 2>/dev/null; then
+        log "Killing tmux session '$session'"
+        [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" kill-session -t "$session" 2>/dev/null
+    fi
+}
+
 shutdown_claude_sessions() {
     log "=== claude-mux shutdown starting (dry-run=${DRY_RUN}) ==="
+
+    # Single session shutdown
+    if [[ -n "$SHUTDOWN_SESSION" ]]; then
+        shutdown_single_session "$SHUTDOWN_SESSION"
+        log "=== claude-mux shutdown complete ==="
+        return
+    fi
+
+    # All managed sessions
     get_managed_session_names
 
     local sessions
@@ -274,7 +414,6 @@ shutdown_claude_sessions() {
     if [[ $exit_count -gt 0 ]]; then
         log "Sent /exit to $exit_count session(s), waiting for Claude to exit..."
         if [[ "$DRY_RUN" != "true" ]]; then
-            # Poll until Claude processes exit (max 30s)
             _wait=0
             while [[ $_wait -lt 30 ]]; do
                 _still_running=false
@@ -722,7 +861,7 @@ start_sessions() {
 
 case "$COMMAND" in
     start)    start_sessions ;;
-    status)   status_claude_sessions ;;
+    list)     status_claude_sessions ;;
     shutdown) shutdown_claude_sessions ;;
     restart)
         shutdown_claude_sessions

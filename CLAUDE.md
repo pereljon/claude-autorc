@@ -46,11 +46,14 @@ The LaunchAgent runs the script at login with a 45-second startup delay for syst
 
 # Usage
 claude-mux                       # start all sessions
-claude-mux project-name          # attach to a session
-claude-mux --status              # show session status
-claude-mux --dry-run             # preview actions without executing
+claude-mux DIRECTORY             # use DIRECTORY as base dir (scan its subdirs)
+claude-mux -d DIRECTORY          # launch single session in directory and attach
+claude-mux -t SESSION            # attach to a session
+claude-mux -l                    # show session status
 claude-mux --shutdown            # gracefully exit all Claude sessions
+claude-mux --shutdown SESSION    # shut down a specific session
 claude-mux --restart             # shutdown then restart all sessions
+claude-mux --dry-run             # preview actions without executing
 
 # Verify LaunchAgent
 launchctl list | grep claude-mux
