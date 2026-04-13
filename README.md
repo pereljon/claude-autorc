@@ -2,7 +2,7 @@
 
 Persistent Claude Code sessions for all your projects — accessible from anywhere via the Claude mobile app.
 
-A shell script that launches Claude Code inside tmux with Remote Control enabled. Run `claude-mux` in any directory to get a persistent, RC-accessible session. Use `claude-mux -a` (or the optional LaunchAgent) to launch sessions for all your projects at once.
+A shell script that launches Claude Code inside tmux with Remote Control enabled, conversation resume, and session self-management via injected prompts. Run `claude-mux` in any directory to get a persistent session accessible from your phone. Use `claude-mux -a` to launch sessions for all your projects at once, or manage them from any Claude conversation — list sessions, send slash commands, start new projects, shut down or restart.
 
 ## Quick Start
 
@@ -31,7 +31,7 @@ That's it — you're in a persistent Claude session with Remote Control enabled.
 4. **SSH account awareness** — injects GitHub SSH host aliases from `~/.ssh/config` so Claude knows which accounts are available for git operations
 5. **Session management** — list sessions with status (`claude-mux -l`), shut down (`--shutdown`), restart (`--restart`), attach (`-t`), send commands (`-s`)
 6. **New project scaffolding** — `claude-mux -n DIRECTORY` initializes git, creates `.gitignore`, sets permission mode, and launches Claude (`-p` creates the directory if it doesn't exist)
-7. **Stray process migration** — detects Claude processes running outside tmux and migrates them into managed tmux sessions
+7. **Stray process migration** — if Claude is already running in the target directory outside tmux, terminates it and relaunches inside a managed tmux session (conversation resumes via `claude -c`)
 8. **Shift+Enter support** — enables tmux `extended-keys` so modified key sequences work in sessions
 
 > **Note:** This is different from `claude --worktree --tmux`, which creates a tmux session for an isolated git worktree. claude-mux manages persistent sessions for your actual project directories, with Remote Control, system prompt injection, and batch orchestration.
