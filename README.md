@@ -4,6 +4,21 @@ Persistent Claude Code sessions for all your projects — accessible from anywhe
 
 A shell script that launches Claude Code inside tmux with Remote Control enabled. Run `claude-mux` in any directory to get a persistent, RC-accessible session. Use `claude-mux -a` (or the optional LaunchAgent) to launch sessions for all your projects at once.
 
+## Quick Start
+
+```bash
+./install.sh
+claude-mux ~/path/to/your/project
+```
+
+Or `cd` into your project directory and run:
+
+```bash
+claude-mux
+```
+
+That's it — you're in a persistent Claude session with Remote Control enabled.
+
 ## What It Does
 
 By default, `claude-mux` launches a Claude Code session in the current directory inside tmux with Remote Control enabled, and attaches to it. If Claude was previously running in the directory, it resumes the conversation via `claude -c`.
