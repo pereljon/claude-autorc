@@ -2,7 +2,7 @@
 
 Persistent Claude Code sessions for all your projects — accessible from anywhere via the Claude mobile app.
 
-A shell script that launches Claude Code inside tmux with Remote Control enabled, conversation resume, and session self-management via injected prompts. Run `claude-mux` in any directory to get a persistent session accessible from your phone. Use `claude-mux -a` to launch sessions for all your projects at once, or manage them from any Claude conversation — list sessions, send slash commands, start new projects, shut down or restart.
+A shell script that launches Claude Code inside tmux with Remote Control enabled, conversation resume, and session self-management — list sessions, send slash commands, start new projects, shut down or restart. Run `claude-mux` in any directory to get a persistent session accessible from your phone. Use `claude-mux -a` to launch sessions for all your projects at once.
 
 ## Quick Start
 
