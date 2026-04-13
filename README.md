@@ -17,7 +17,7 @@ Or `cd` into your project directory and run:
 claude-mux
 ```
 
-That's it — you're in a persistent Claude session with Remote Control enabled.
+That's it — you're in a persistent, session-aware Claude session with Remote Control enabled.
 
 ## What It Does
 
