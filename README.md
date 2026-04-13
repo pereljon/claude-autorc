@@ -21,25 +21,30 @@ That's it — you're in a persistent Claude session with Remote Control enabled.
 
 ## What It Does
 
-By default, `claude-mux` launches a Claude Code session in the current directory inside tmux with Remote Control enabled, and attaches to it. If Claude was previously running in the directory, it resumes the conversation via `claude -c`.
+1. **Persistent tmux sessions with Remote Control** — launches Claude Code inside tmux with `--remote-control` enabled, so every session is accessible from the Claude mobile app
+2. **Conversation resume** — if Claude was previously running in the directory, resumes the last conversation (`claude -c`) inside a new tmux session with Remote Control, preserving your context
+3. **Claude self-management** — each session is injected with a system prompt so Claude can manage sessions directly from conversation prompts (terminal or mobile app):
+   - a. List running sessions and all projects
+   - b. Launch new sessions, create new projects
+   - c. Send slash commands to itself or other sessions (workaround for [slash commands not working natively over RC](https://github.com/anthropics/claude-code/issues/30674))
+   - d. Shut down or restart sessions
+   - e. Session name and GitHub SSH accounts from `~/.ssh/config`
+4. **Session management** — list sessions with status (`claude-mux -l`), shut down (`--shutdown`), restart (`--restart`), attach (`-t`), send commands (`-s`)
+5. **New project scaffolding** — `claude-mux -n DIRECTORY` initializes git, creates `.gitignore`, sets permission mode, and launches Claude
+6. **Stray process migration** — detects Claude processes running outside tmux and migrates them into managed tmux sessions
+7. **Shift+Enter support** — enables tmux `extended-keys` so modified key sequences work in sessions
 
 > **Note:** This is different from `claude --worktree --tmux`, which creates a tmux session for an isolated git worktree. claude-mux manages persistent sessions for your actual project directories, with Remote Control, system prompt injection, and batch orchestration.
 
-Each Claude session is injected with a system prompt containing all claude-mux commands, so Claude can manage sessions directly from conversation prompts — list sessions, launch new ones, send slash commands, shut down or restart sessions, and create new projects. This works from both the terminal and the mobile app via Remote Control.
-
-Sessions are also injected with their tmux session name and any GitHub SSH accounts found in `~/.ssh/config`.
-
 ### Batch Mode
 
-With `claude-mux -a` (or via the LaunchAgent at login), it runs in batch mode:
+With `claude-mux -a` (or via the LaunchAgent at login), it launches sessions for all your projects at once:
 
 1. Finds all Claude projects under `~/Claude/` — any directory containing a `.claude/` subdirectory, at any depth
 2. Skips directories starting with `-`, hidden directories, and directories containing `.ignore-claudemux`
-3. Migrates any Claude Code processes already running outside tmux — SIGTERMs them so they resume cleanly inside tmux via `claude -c`
-4. Creates a persistent tmux session per project with Claude Code running, with Remote Control enabled (if you've enabled RC globally via `/config`, the flag is redundant but harmless)
-5. Attempts to resume the last conversation (`claude -c`), falling back to a fresh start
-
-You can also create a new project with `claude-mux -n DIRECTORY` (which initializes git, creates a `.gitignore`, sets permission mode, and launches Claude).
+3. Migrates any Claude Code processes already running outside tmux
+4. Creates a persistent tmux session per project with Remote Control enabled
+5. Resumes the last conversation (`claude -c`), falling back to a fresh start
 
 ## Requirements
 
