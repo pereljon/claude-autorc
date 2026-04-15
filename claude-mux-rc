@@ -26,6 +26,10 @@
 # Requires tmux 3.2+. Default: true
 #TMUX_EXTENDED_KEYS=true
 
+# Set the terminal/tab title to the session name. Uses tmux format variables.
+# '#S' = session name. Set to "" to disable. Default: '#S'
+#TMUX_TITLE_FORMAT='#S'
+
 # Seconds to wait between launching each session.
 # Increase if sessions fail to register with Remote Control.
 # Default: 5

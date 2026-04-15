@@ -26,6 +26,10 @@ ALLOW_CROSS_SESSION_CONTROL=false
 # When true, enable tmux extended-keys for Shift+Enter and other modified keys.
 TMUX_EXTENDED_KEYS=true
 
+# Set the terminal/tab title to the session name. Uses tmux format variables.
+# '#S' = session name. Set to "" to disable.
+TMUX_TITLE_FORMAT='#S'
+
 # When false, the LaunchAgent (-a/--all) exits without starting sessions.
 # Set to true to enable automatic batch startup at login.
 LAUNCHAGENT_ENABLED=false
@@ -179,6 +183,10 @@ if [[ ! -f "$HOME/.claude-mux-rc" ]]; then
 # Enable tmux extended-keys for Shift+Enter and other modified key support.
 # Requires tmux 3.2+. Default: true
 #TMUX_EXTENDED_KEYS=true
+
+# Set the terminal/tab title to the session name. Uses tmux format variables.
+# '#S' = session name. Set to "" to disable. Default: '#S'
+#TMUX_TITLE_FORMAT='#S'
 
 # Seconds to wait between launching each session.
 # Increase if sessions fail to register with Remote Control.
@@ -727,6 +735,12 @@ create_claude_session() {
         "$TMUX_BIN" set-option -t "$session_name" extended-keys on 2>/dev/null
     fi
 
+    # Set terminal/tab title to session name
+    if [[ -n "$TMUX_TITLE_FORMAT" ]]; then
+        "$TMUX_BIN" set-option -t "$session_name" set-titles on 2>/dev/null
+        "$TMUX_BIN" set-option -t "$session_name" set-titles-string "$TMUX_TITLE_FORMAT" 2>/dev/null
+    fi
+
     # Build system prompt
     local tmux_prompt mux_bin="${CLAUDE_MUX_BIN}"
     local mux_cmds="You can send slash commands to yourself via: ${mux_bin} -s '${session_name}' '/command args'."
@@ -991,6 +1005,12 @@ launch_single_session() {
     # Enable extended keys
     if [[ "$TMUX_EXTENDED_KEYS" == "true" ]]; then
         "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" extended-keys on 2>/dev/null
+    fi
+
+    # Set terminal/tab title to session name
+    if [[ -n "$TMUX_TITLE_FORMAT" ]]; then
+        "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" set-titles on 2>/dev/null
+        "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" set-titles-string "$TMUX_TITLE_FORMAT" 2>/dev/null
     fi
 
     attach_to_session "$LAUNCH_SESSION_NAME"
