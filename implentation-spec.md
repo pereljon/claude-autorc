@@ -48,8 +48,18 @@ On first run, the script creates `~/.claude-mux-rc` with all settings commented 
 | `LOG_DIR` | `$HOME/Library/Logs` | Directory for the `claude-mux.log` file |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set `permissions.defaultMode` in `.claude/settings.local.json` per project. Valid: `""` (disabled), `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions` |
 | `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions are told they can send slash commands to other sessions via tmux. When `false`, sessions can only send commands to themselves. |
+| `SLEEP_BETWEEN` | `5` | Seconds between session launches in batch mode |
+| `LAUNCHAGENT_ENABLED` | `false` | When `true`, the LaunchAgent starts all managed sessions at login |
+| `TMUX_MOUSE` | `true` | Mouse support (scroll, select, resize) |
+| `TMUX_HISTORY_LIMIT` | `50000` | Scrollback buffer size in lines |
+| `TMUX_CLIPBOARD` | `true` | System clipboard integration via OSC 52 |
+| `TMUX_DEFAULT_TERMINAL` | `tmux-256color` | Terminal type for color rendering |
+| `TMUX_EXTENDED_KEYS` | `true` | Extended key sequences including Shift+Enter |
+| `TMUX_ESCAPE_TIME` | `10` | Escape key delay in milliseconds |
+| `TMUX_TITLE_FORMAT` | `#S` | Terminal/tab title format |
+| `TMUX_MONITOR_ACTIVITY` | `true` | Activity notifications from other sessions |
 
-The script sources `~/.claude-mux-rc` after setting defaults, so any variable set in the config overrides the default.
+The script sources `~/.claude-mux-rc` after setting defaults, so any variable set in the config overrides the default. Tmux session options are applied via `apply_tmux_options()` after session creation.
 
 ## Script: claude-mux
 

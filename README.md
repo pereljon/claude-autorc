@@ -34,7 +34,7 @@ claude-mux is a single bash script with no dependencies beyond tmux and Claude C
 5. **SSH account awareness** — injects GitHub SSH host aliases from `~/.ssh/config` so Claude knows which accounts are available for git operations
 6. **New project creation** — `claude-mux -n DIRECTORY` creates a ready-to-code project with git, `.gitignore`, and permission mode configured (`-p` creates the directory if it doesn't exist). Any running session can create new projects — ask Claude to set up a repo on any of your GitHub accounts and start coding, from anywhere
 7. **Stray process migration** — if Claude is already running in the target directory outside tmux, terminates it and relaunches inside a managed tmux session (conversation resumes via `claude -c`)
-8. **Shift+Enter support** — enables tmux `extended-keys` so modified key sequences work in sessions
+8. **Tmux quality-of-life** — sessions are configured with mouse support, 50k scrollback buffer, clipboard integration, 256-color, reduced escape delay, extended keys (Shift+Enter), activity monitoring, and terminal tab titles — all configurable in the rc file
 
 > **Note:** This is different from `claude --worktree --tmux`, which creates a tmux session for an isolated git worktree. claude-mux manages persistent sessions for your actual project directories, with Remote Control, system prompt injection, and batch orchestration.
 
@@ -149,10 +149,22 @@ On first run, `~/.claude-mux-rc` is created automatically with all settings comm
 | `BASE_DIR` | `$HOME/Claude` | Root directory to scan for Claude projects (directories containing `.claude/`) |
 | `LOG_DIR` | `$HOME/Library/Logs` | Directory for the `claude-mux.log` file |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set Claude's `permissions.defaultMode` in each project. Valid: `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`. Set to `""` to disable. |
-| `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions can send slash commands to other sessions via tmux — useful for multi-agent orchestration. When `false`, sessions can only command themselves. |
-| `TMUX_EXTENDED_KEYS` | `true` | Enable tmux extended-keys for Shift+Enter and other modified key support (requires tmux 3.2+) |
-| `SLEEP_BETWEEN` | `5` | Seconds to wait between launching each session in batch mode. Increase if sessions fail to register with Remote Control. |
-| `LAUNCHAGENT_ENABLED` | `false` | When `true`, the LaunchAgent starts all managed sessions at login. Enable with `--enable-launchagent` during install, or set to `true` in the rc file. |
+| `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions can send slash commands to other sessions — useful for multi-agent orchestration |
+| `SLEEP_BETWEEN` | `5` | Seconds between session launches in batch mode. Increase if RC registration fails. |
+| `LAUNCHAGENT_ENABLED` | `false` | When `true`, the LaunchAgent starts all managed sessions at login |
+
+**Tmux session options** (all configurable, all enabled by default):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TMUX_MOUSE` | `true` | Mouse support — scroll, select, resize panes |
+| `TMUX_HISTORY_LIMIT` | `50000` | Scrollback buffer size in lines (tmux default is 2000) |
+| `TMUX_CLIPBOARD` | `true` | System clipboard integration via OSC 52 |
+| `TMUX_DEFAULT_TERMINAL` | `tmux-256color` | Terminal type for proper color rendering |
+| `TMUX_EXTENDED_KEYS` | `true` | Extended key sequences including Shift+Enter (requires tmux 3.2+) |
+| `TMUX_ESCAPE_TIME` | `10` | Escape key delay in milliseconds (tmux default is 500) |
+| `TMUX_TITLE_FORMAT` | `#S` | Terminal/tab title format (`#S` = session name, `""` to disable) |
+| `TMUX_MONITOR_ACTIVITY` | `true` | Notify when activity occurs in other sessions |
 
 ## Directory Structure
 

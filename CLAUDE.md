@@ -29,6 +29,7 @@ The LaunchAgent runs the script at login with a 45-second startup delay for syst
 - **Logging**: all actions appended to `~/Library/Logs/claude-mux.log` (UTC ISO 8601, configurable via `LOG_DIR`)
 - **Default permission mode**: optionally sets Claude's `permissions.defaultMode` per project via `.claude/settings.local.json`
 - **Tmux-aware sessions**: each session gets `--append-system-prompt` with its tmux session name, so Claude knows how to send slash commands (e.g. `/model`, `/compact`) to itself via `tmux send-keys` (cross-session control available when `ALLOW_CROSS_SESSION_CONTROL=true`)
+- **Tmux quality-of-life**: sessions configured with mouse, 50k scrollback, clipboard, 256-color, reduced escape delay, extended keys, activity monitoring, and tab titles — all configurable via rc file
 
 ## Dependencies
 
