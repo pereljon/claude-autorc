@@ -146,6 +146,15 @@ Claude: runs `claude-mux --shutdown data-pipeline`
 
 You: "Restart the stuck web-dashboard session"
 Claude: runs `claude-mux --restart web-dashboard`
+
+You: "Attach to the api-server session"
+Claude: runs `claude-mux -t api-server`
+
+You: "Launch the data-pipeline session in the background"
+Claude: runs `claude-mux -d ~/Claude/work/data-pipeline --no-attach`
+
+You: "Start all my projects"
+Claude: runs `claude-mux -a` (after confirming — this starts every managed project)
 ```
 
 ## Configuration
