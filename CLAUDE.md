@@ -74,6 +74,18 @@ log show --predicate 'process == "launchd"' --last 5m | grep claude
 
 When diagnosing issues, distinguish clearly between what you know and what you're guessing. Don't state theories as conclusions. Use language like "this could be", "one possibility is", or "I'm not sure, but" when you lack evidence. If you can't verify something, say so rather than presenting speculation as fact.
 
+## Change checklist
+
+After any code change, verify whether these also need updating:
+- `README.md` — usage, feature descriptions, configuration table, examples
+- `claude-mux-rc` — example config template
+- `~/.claude-mux-rc` — deployed user config (add new settings)
+- `install.sh` — installer-generated config, new flags
+- `implentation-spec.md` — startup sequence, settings table, function docs
+- `CLAUDE.md` — key behaviors, commands, config summary
+
+Do not commit until all affected files are updated.
+
 ## Development workflow
 
 The script has two locations:
