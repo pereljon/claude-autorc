@@ -129,6 +129,8 @@ When run from the terminal, output is mirrored to stdout in real time. When run 
 
 A trailing `*` on any status indicates the session is protected and requires `--force` to shut down (e.g. `active*`, `running*`). The home session is always protected.
 
+Running `claude-mux` in a directory that already has a running session attaches to it. Multiple terminals can attach to the same session (standard tmux behavior).
+
 ## Claude Prompt Examples
 
 Because each session is injected with claude-mux commands, you can manage sessions directly from conversation prompts - in the terminal or via the mobile app:
