@@ -902,6 +902,65 @@ PYEOF
     fi
 }
 
+setup_claude_mux_permissions() {
+    local dir="$1"
+    local settings_file="$dir/.claude/settings.local.json"
+
+    # Check if claude-mux permissions already exist
+    if [[ -f "$settings_file" ]]; then
+        if /usr/bin/python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f: d = json.load(f)
+    allow = d.get('permissions', {}).get('allow', [])
+    sys.exit(0 if any('claude-mux' in r for r in allow) else 1)
+except: sys.exit(1)
+" "$settings_file" 2>/dev/null; then
+            return  # already configured
+        fi
+    fi
+
+    log "Adding claude-mux to permissions.allow in $dir"
+    [[ "$DRY_RUN" == "true" ]] && return
+
+    if ! mkdir -p "$dir/.claude" 2>/dev/null; then
+        log "WARN: Cannot create $dir/.claude — skipping permissions setup"
+        return
+    fi
+
+    local mux_rules='["Bash(claude-mux)", "Bash(claude-mux *)", "Bash(*/claude-mux)", "Bash(*/claude-mux *)"]'
+
+    if [[ -f "$settings_file" ]]; then
+        if ! /usr/bin/python3 - "$settings_file" "$mux_rules" >> "$LOG_FILE" 2>&1 << 'PYEOF'
+import json, sys
+try:
+    with open(sys.argv[1]) as f: d = json.load(f)
+except (json.JSONDecodeError, OSError) as e:
+    print(f"ERROR reading {sys.argv[1]}: {e}", file=sys.stderr)
+    sys.exit(1)
+new_rules = json.loads(sys.argv[2])
+allow = d.setdefault('permissions', {}).setdefault('allow', [])
+for rule in new_rules:
+    if rule not in allow:
+        allow.append(rule)
+try:
+    with open(sys.argv[1], 'w') as f: json.dump(d, f, indent=2)
+except OSError as e:
+    print(f"ERROR writing {sys.argv[1]}: {e}", file=sys.stderr)
+    sys.exit(1)
+PYEOF
+        then
+            log "WARN: Failed to add claude-mux permissions to $settings_file"
+        fi
+    else
+        /usr/bin/python3 -c "
+import json, sys
+d = {'permissions': {'allow': json.loads(sys.argv[1])}}
+with open(sys.argv[2], 'w') as f: json.dump(d, f, indent=2)
+" "$mux_rules" "$settings_file" 2>/dev/null
+    fi
+}
+
 detect_github_ssh_accounts() {
     # Parses ~/.ssh/config for GitHub SSH host aliases (Host github.com-*)
     # and sets GITHUB_SSH_INFO to a prompt-ready string, or empty if none found.
@@ -1136,6 +1195,7 @@ start_sessions() {
 "
 
         setup_default_mode "$PROJECT_DIR"
+        setup_claude_mux_permissions "$PROJECT_DIR"
         create_claude_session "$session_name" "$PROJECT_DIR"
     done
 
@@ -1167,6 +1227,7 @@ launch_single_session() {
 
     detect_github_ssh_accounts
     setup_default_mode "$LAUNCH_DIR"
+    setup_claude_mux_permissions "$LAUNCH_DIR"
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log "Creating tmux session '$LAUNCH_SESSION_NAME' in $LAUNCH_DIR"
@@ -1317,6 +1378,9 @@ create_new_project() {
     else
         log "Skipping permission mode (--no-permission-mode)"
     fi
+
+    # Always set claude-mux permissions regardless of --no-permission-mode
+    setup_claude_mux_permissions "$NEW_PROJECT_DIR"
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log "Dry run — skipping session creation and attach for '$NEW_SESSION_NAME'"
