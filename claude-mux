@@ -67,6 +67,9 @@ DEFAULT_TEMPLATE="default.md"
 #   batch — launch sessions for all managed projects (heavy)
 LAUNCHAGENT_MODE=none
 
+# Model for the home session. Set to "" to use the default model.
+HOME_SESSION_MODEL="sonnet"
+
 # Legacy: LAUNCHAGENT_ENABLED=true is treated as LAUNCHAGENT_MODE=batch for
 # backward compatibility. Use LAUNCHAGENT_MODE going forward.
 LAUNCHAGENT_ENABLED=false
@@ -320,6 +323,10 @@ if [[ ! -f "$CLAUDE_MUX_CONFIG" ]]; then
 #   home  — launch a single 'home' session in \$BASE_DIR (protected from shutdown)
 #   batch — launch sessions for all managed projects
 #LAUNCHAGENT_MODE=none
+
+# Model for the home session. Set to "" to use the default model.
+# Default: sonnet
+#HOME_SESSION_MODEL="sonnet"
 CONFIG_EOF
     if [[ -d "$LOG_DIR" ]]; then
         echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Created config at $CLAUDE_MUX_CONFIG" >> "$LOG_DIR/claude-mux.log"
@@ -1271,9 +1278,15 @@ launch_single_session() {
     prompt_file=$(mktemp /tmp/claude-prompt-XXXXXX)
     printf '%s' "$tmux_prompt" > "$prompt_file"
 
+    # Build model flag for home sessions
+    local model_flag=""
+    if [[ "$HOME_LAUNCH" == "true" && -n "$HOME_SESSION_MODEL" ]]; then
+        model_flag="--model ${HOME_SESSION_MODEL}"
+    fi
+
     # Create session with Claude as the initial command
     "$TMUX_BIN" new-session -d -s "$LAUNCH_SESSION_NAME" -c "$LAUNCH_DIR" \
-        "bash -c 'trap \"rm -f ${prompt_file}\" EXIT; _prompt=\$(cat \"${prompt_file}\"); claude -c --remote-control --permission-mode auto --name \"${LAUNCH_SESSION_NAME}\" --append-system-prompt \"\$_prompt\" 2>/dev/null || claude --remote-control --permission-mode auto --name \"${LAUNCH_SESSION_NAME}\" --append-system-prompt \"\$_prompt\"'"
+        "bash -c 'trap \"rm -f ${prompt_file}\" EXIT; _prompt=\$(cat \"${prompt_file}\"); claude -c --remote-control --permission-mode auto ${model_flag} --name \"${LAUNCH_SESSION_NAME}\" --append-system-prompt \"\$_prompt\" 2>/dev/null || claude --remote-control --permission-mode auto ${model_flag} --name \"${LAUNCH_SESSION_NAME}\" --append-system-prompt \"\$_prompt\"'"
 
     apply_tmux_options "$LAUNCH_SESSION_NAME"
 

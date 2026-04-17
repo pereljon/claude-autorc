@@ -50,6 +50,10 @@
 #   batch — launch sessions for all managed projects
 #LAUNCHAGENT_MODE=none
 
+# Model for the home session. Set to "" to use the default model.
+# Default: sonnet
+#HOME_SESSION_MODEL="sonnet"
+
 # ── Batch mode ────────────────────────────────────────────────────────────────
 
 # Seconds to wait between launching each session.
