@@ -68,20 +68,22 @@ With `claude-mux -a` (or via the LaunchAgent at login with `LAUNCHAGENT_MODE=bat
 ./install.sh
 ```
 
-This installs `claude-mux` to the first writable bin directory in your `PATH`, creates `~/.claude-mux-rc` with your settings, and installs the LaunchAgent (disabled by default — use `--enable-launchagent` to activate batch startup at login).
+The interactive installer asks where your Claude projects live, whether to start a home session at login, and which model to use. It installs `claude-mux` to `~/bin`, creates `~/.claude-mux/config`, and sets up the LaunchAgent.
+
+Use `--non-interactive` to skip prompts and accept defaults.
 
 Options:
 
 ```bash
-./install.sh --enable-launchagent                  # enable batch startup at login
+./install.sh --non-interactive                     # skip prompts, use defaults
 ./install.sh --base-dir ~/work/claude              # use a different base directory
-./install.sh --bin-dir ~/.local/bin                # specify bin directory explicitly
-./install.sh --permission-mode acceptEdits         # set default Claude permission mode
-./install.sh --cross-session-control               # enable multi-agent session control
+./install.sh --launchagent-mode batch              # launch all sessions at login
+./install.sh --launchagent-mode none               # disable LaunchAgent behavior
+./install.sh --home-model haiku                    # use Haiku for home session
 ./install.sh --no-launchagent                      # skip LaunchAgent installation entirely
 ```
 
-When enabled, the LaunchAgent runs `claude-mux -a` at login with a 45-second startup delay to allow system services to initialize.
+The LaunchAgent runs `claude-mux --autolaunch` at login with a 45-second startup delay to allow system services to initialize.
 
 ## Usage
 
@@ -178,7 +180,7 @@ On first run, `~/.claude-mux/config` is created automatically with all settings 
 | `TEMPLATES_DIR` | `$HOME/.claude-mux/templates` | Directory containing CLAUDE.md template files |
 | `DEFAULT_TEMPLATE` | `default.md` | Default template applied to new projects (`-n`). Set to `""` to disable. |
 | `SLEEP_BETWEEN` | `5` | Seconds between session launches in batch mode. Increase if RC registration fails. |
-| `LAUNCHAGENT_MODE` | `none` | LaunchAgent behavior at login: `none` (do nothing), `home` (launch protected home session), `batch` (launch all managed sessions). Legacy `LAUNCHAGENT_ENABLED=true` is treated as `batch`. |
+| `LAUNCHAGENT_MODE` | `home` | LaunchAgent behavior at login: `none` (do nothing), `home` (launch protected home session), `batch` (launch all managed sessions). Legacy `LAUNCHAGENT_ENABLED=true` is treated as `batch`. |
 
 **Tmux session options** (all configurable, all enabled by default):
 

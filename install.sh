@@ -14,9 +14,11 @@ DEFAULT_BASE_DIR="$HOME/Claude"
 BASE_DIR=""
 BIN_DIR=""
 INSTALL_LAUNCHAGENT=true
-LAUNCHAGENT_MODE="none"
+LAUNCHAGENT_MODE="home"
+HOME_SESSION_MODEL="sonnet"
 DEFAULT_PERMISSION_MODE="auto"
 ALLOW_CROSS_SESSION_CONTROL=false
+INTERACTIVE=true
 
 usage() {
     cat << EOF
@@ -26,23 +28,22 @@ Usage: install.sh [OPTIONS]
 
 Options:
   --base-dir DIR          Root directory for Claude projects (default: ~/Claude)
-  --bin-dir DIR           Directory to install claude-mux binary (default: first writable bin in PATH)
+  --bin-dir DIR           Directory to install claude-mux binary (default: ~/bin)
   --permission-mode MODE  Set Claude's default permission mode per project
                           Valid: default, acceptEdits, plan, auto, dontAsk, bypassPermissions, "" (disabled)
                           (default: auto)
   --cross-session-control Enable sessions to send slash commands to each other (multi-agent)
-  --launchagent-mode MODE Set LaunchAgent behavior at login
-                          Valid: none (default), home, batch
+  --launchagent-mode MODE Set LaunchAgent behavior at login: none, home (default), batch
+  --home-model MODEL      Model for the home session (default: sonnet)
   --no-launchagent        Skip LaunchAgent installation entirely
+  --non-interactive       Skip interactive prompts, use defaults/flags only
   -h, --help              Show this help message
 
 Examples:
   ./install.sh
-  ./install.sh --launchagent-mode home
-  ./install.sh --launchagent-mode batch
-  ./install.sh --base-dir ~/work/claude
-  ./install.sh --bin-dir ~/.local/bin --no-launchagent
-  ./install.sh --permission-mode acceptEdits
+  ./install.sh --non-interactive
+  ./install.sh --base-dir ~/work/claude --launchagent-mode batch
+  ./install.sh --no-launchagent
 EOF
 }
 
@@ -68,35 +69,107 @@ while [[ $# -gt 0 ]]; do
                 *) echo "ERROR: --launchagent-mode must be none, home, or batch" >&2; exit 1 ;;
             esac
             shift 2 ;;
+        --home-model)
+            [[ $# -lt 2 ]] && { echo "ERROR: --home-model requires a value" >&2; exit 1; }
+            HOME_SESSION_MODEL="$2"
+            case "$HOME_SESSION_MODEL" in
+                sonnet|haiku|opus|"") ;;
+                *) echo "ERROR: --home-model must be sonnet, haiku, opus, or \"\" (empty)" >&2; exit 1 ;;
+            esac
+            shift 2 ;;
         --no-launchagent)       INSTALL_LAUNCHAGENT=false; shift ;;
+        --non-interactive)      INTERACTIVE=false; shift ;;
         -h|--help)              usage; exit 0 ;;
         *)                      echo "Unknown option: $1" >&2; echo >&2; usage >&2; exit 1 ;;
     esac
 done
+
+# ── Interactive prompts ───────────────────────────────────────────────────────
+
+if [[ "$INTERACTIVE" == "true" && -t 0 ]]; then
+    echo "claude-mux installer"
+    echo ""
+
+    # BASE_DIR
+    if [[ -z "$BASE_DIR" ]]; then
+        printf "Where are your Claude projects? [%s]: " "$DEFAULT_BASE_DIR"
+        read -r _input
+        BASE_DIR="${_input:-$DEFAULT_BASE_DIR}"
+        # Expand ~ if user typed it
+        BASE_DIR="${BASE_DIR/#\~/$HOME}"
+    fi
+
+    # Validate BASE_DIR is a reasonable path
+    if [[ -z "$BASE_DIR" ]]; then
+        echo "ERROR: Base directory cannot be empty." >&2
+        exit 1
+    fi
+
+    # Check if path is writable (parent must exist for mkdir)
+    local _parent
+    _parent="$(dirname "$BASE_DIR")"
+    if [[ ! -d "$_parent" && ! -w "$(dirname "$_parent")" ]]; then
+        echo "ERROR: Cannot create $BASE_DIR — parent directory is not writable." >&2
+        exit 1
+    fi
+
+    if [[ ! -d "$BASE_DIR" ]]; then
+        printf "Directory %s does not exist. Create it? [Y/n]: " "$BASE_DIR"
+        read -r _confirm
+        if [[ "${_confirm:-y}" =~ ^[Yy] ]]; then
+            mkdir -p "$BASE_DIR"
+        else
+            echo "ERROR: Base directory does not exist." >&2
+            exit 1
+        fi
+    fi
+
+    # LaunchAgent mode
+    echo ""
+    echo "A home session is a lightweight Claude session that runs in your base"
+    echo "directory. It stays running so Remote Control is always available from"
+    echo "the Claude mobile app, and can manage all your other sessions."
+    echo ""
+    printf "Start a home session at login? (none/home/batch) [%s]: " "$LAUNCHAGENT_MODE"
+    read -r _input
+    if [[ -n "$_input" ]]; then
+        case "$_input" in
+            none|home|batch) LAUNCHAGENT_MODE="$_input" ;;
+            *) echo "Invalid choice, using default: $LAUNCHAGENT_MODE" ;;
+        esac
+    fi
+
+    # Home session model (only if mode is home)
+    if [[ "$LAUNCHAGENT_MODE" == "home" ]]; then
+        printf "Home session model? (sonnet/haiku/opus) [%s]: " "$HOME_SESSION_MODEL"
+        read -r _input
+        if [[ -n "$_input" ]]; then
+            case "$_input" in
+                sonnet|haiku|opus) HOME_SESSION_MODEL="$_input" ;;
+                *) echo "Invalid model, using default: $HOME_SESSION_MODEL" ;;
+            esac
+        fi
+    fi
+
+    echo ""
+fi
 
 BASE_DIR="${BASE_DIR:-$DEFAULT_BASE_DIR}"
 
 # ── Find bin dir ──────────────────────────────────────────────────────────────
 
 find_bin_dir() {
-    # Prefer existing writable user bin directories
     local candidates=("$HOME/bin" "$HOME/.local/bin")
     for dir in "${candidates[@]}"; do
         if [[ -d "$dir" && -w "$dir" ]]; then
             echo "$dir"; return
         fi
     done
-    # Fall back to creating ~/bin
     echo "$HOME/bin"
 }
 
 if [[ -z "$BIN_DIR" ]]; then
     BIN_DIR="$(find_bin_dir)"
-    if [[ -z "$BIN_DIR" ]]; then
-        echo "ERROR: No writable bin directory found in PATH." >&2
-        echo "Use --bin-dir to specify one (e.g. --bin-dir ~/.local/bin)." >&2
-        exit 1
-    fi
 fi
 
 if [[ ! -d "$BIN_DIR" ]]; then
@@ -110,8 +183,8 @@ if [[ ! -w "$BIN_DIR" ]]; then
 fi
 
 # Add bin dir to PATH in shell profile if not already there
+PATH_UPDATED=""
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
-    # Detect shell profile
     if [[ -n "${ZSH_VERSION:-}" ]] || [[ "$SHELL" == */zsh ]]; then
         SHELL_PROFILE="$HOME/.zshrc"
     else
@@ -127,11 +200,7 @@ export PATH="\$PATH:$BIN_DIR"
 # End of claude-mux section
 PROFILE_EOF
         PATH_UPDATED="$SHELL_PROFILE"
-    else
-        PATH_UPDATED=""
     fi
-else
-    PATH_UPDATED=""
 fi
 
 # ── Install binary ────────────────────────────────────────────────────────────
@@ -181,7 +250,10 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
     [[ "$ALLOW_CROSS_SESSION_CONTROL" == "false" ]] && cross_line="#ALLOW_CROSS_SESSION_CONTROL=false"
 
     launchagent_line="LAUNCHAGENT_MODE=${LAUNCHAGENT_MODE}"
-    [[ "$LAUNCHAGENT_MODE" == "none" ]] && launchagent_line="#LAUNCHAGENT_MODE=none"
+    [[ "$LAUNCHAGENT_MODE" == "home" ]] && launchagent_line="#LAUNCHAGENT_MODE=home"
+
+    model_line="HOME_SESSION_MODEL=\"${HOME_SESSION_MODEL}\""
+    [[ "$HOME_SESSION_MODEL" == "sonnet" ]] && model_line="#HOME_SESSION_MODEL=\"sonnet\""
 
     cat > "$CONFIG_FILE" << CONFIG_EOF
 # ~/.claude-mux/config — claude-mux user configuration
@@ -209,8 +281,12 @@ ${cross_line}
 #DEFAULT_TEMPLATE="default.md"
 
 # ── LaunchAgent ───────────────────────────────────────────────────────────────
-# LaunchAgent mode at login: none (default), home, batch
+# LaunchAgent mode at login: none, home (default), batch
 ${launchagent_line}
+
+# Model for the home session. Set to "" to use the default model.
+# Default: sonnet
+${model_line}
 
 # ── Batch mode ────────────────────────────────────────────────────────────────
 #SLEEP_BETWEEN=5
@@ -237,7 +313,6 @@ if [[ "$INSTALL_LAUNCHAGENT" == "true" ]]; then
         fi
 
         echo "Installing LaunchAgent to $PLIST_DEST..."
-        # Template the binary path into the plist so it matches --bin-dir
         sed "s|exec \"\\\$HOME/bin/claude-mux\" --autolaunch|exec \"$BIN_DIR/claude-mux\" --autolaunch|" "$PLIST_SRC" > "$PLIST_DEST"
         if ! grep -q "$BIN_DIR/claude-mux" "$PLIST_DEST" 2>/dev/null; then
             echo "WARNING: Could not template binary path into plist — LaunchAgent may point to wrong location."
@@ -253,15 +328,14 @@ fi
 echo ""
 echo "claude-mux installed successfully."
 echo ""
-echo "  Binary:    $BIN_DIR/claude-mux"
-echo "  Base dir:  $BASE_DIR"
-echo "  Config:    $CONFIG_FILE"
-[[ "$INSTALL_LAUNCHAGENT" == "true" ]] && echo "  LaunchAgent: com.user.claude-mux (loaded)"
+echo "  Binary:       $BIN_DIR/claude-mux"
+echo "  Base dir:     $BASE_DIR"
+echo "  Config:       $CONFIG_FILE"
+echo "  LaunchAgent:  $LAUNCHAGENT_MODE"
+[[ "$LAUNCHAGENT_MODE" == "home" ]] && echo "  Home model:   $HOME_SESSION_MODEL"
 echo ""
 
 if [[ -n "$PATH_UPDATED" ]]; then
-    echo "  PATH:      $BIN_DIR added to $PATH_UPDATED"
-    echo ""
     echo "┌──────────────────────────────────────────────────────────────────┐"
     echo "│  ACTION REQUIRED: Restart your terminal or run:                 │"
     echo "│                                                                  │"
@@ -269,6 +343,5 @@ if [[ -n "$PATH_UPDATED" ]]; then
     echo "│                                                                  │"
     echo "└──────────────────────────────────────────────────────────────────┘"
 else
-    echo ""
     echo "Run 'claude-mux --help' to get started."
 fi

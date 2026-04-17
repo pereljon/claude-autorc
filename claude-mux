@@ -65,7 +65,7 @@ DEFAULT_TEMPLATE="default.md"
 #   none  — do nothing
 #   home  — launch a single 'home' session in $BASE_DIR (protected from shutdown)
 #   batch — launch sessions for all managed projects (heavy)
-LAUNCHAGENT_MODE=none
+LAUNCHAGENT_MODE=home
 
 # Model for the home session. Set to "" to use the default model.
 HOME_SESSION_MODEL="sonnet"
@@ -319,10 +319,10 @@ if [[ ! -f "$CLAUDE_MUX_CONFIG" ]]; then
 #SLEEP_BETWEEN=5
 
 # LaunchAgent mode — what happens at login:
-#   none  — do nothing (default)
-#   home  — launch a single 'home' session in \$BASE_DIR (protected from shutdown)
+#   none  — do nothing
+#   home  — launch a single 'home' session in \$BASE_DIR (protected from shutdown) (default)
 #   batch — launch sessions for all managed projects
-#LAUNCHAGENT_MODE=none
+#LAUNCHAGENT_MODE=home
 
 # Model for the home session. Set to "" to use the default model.
 # Default: sonnet
