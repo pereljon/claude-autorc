@@ -152,14 +152,13 @@ if [[ "$INTERACTIVE" == "true" && -t 0 ]]; then
     echo "directory. It stays running so Remote Control is always available from"
     echo "the Claude mobile app, and can manage all your other sessions."
     echo ""
-    printf "Start a home session at login? (none/home/batch) [%s]: " "$LAUNCHAGENT_MODE"
+    printf "Start a home session at login? [Y/n]: "
     read -r _input
-    if [[ -n "$_input" ]]; then
-        case "$_input" in
-            none|home|batch) LAUNCHAGENT_MODE="$_input" ;;
-            *) echo "Invalid choice, using default: $LAUNCHAGENT_MODE" ;;
-        esac
-    fi
+    case "${_input:-y}" in
+        [Yy]|[Yy]es) LAUNCHAGENT_MODE="home" ;;
+        [Nn]|[Nn]o)  LAUNCHAGENT_MODE="none" ;;
+        *) echo "Invalid choice, defaulting to yes"; LAUNCHAGENT_MODE="home" ;;
+    esac
 
     # Home session model (only if mode is home)
     if [[ "$LAUNCHAGENT_MODE" == "home" ]]; then
