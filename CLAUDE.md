@@ -111,6 +111,8 @@ After any code change, verify whether these also need updating:
 - **Injection prompt** — the system prompt injected into Claude sessions must reflect all current commands. Update both the `create_claude_session` and `launch_single_session` injection strings when commands are added, changed, or removed.
 - **Session System Prompt section in README** — must match the actual injection
 
+- `ISSUES.md` — log new bugs and known issues; update resolved entries when fixed
+
 Do not commit until all affected files are updated.
 
 ## Development workflow
