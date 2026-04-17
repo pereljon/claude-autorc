@@ -1062,6 +1062,11 @@ LAUNCH_EOF
         "$TMUX_BIN" send-keys -t "$session_name" "" Enter
     fi
 
+    # Home session is always protected
+    if [[ "$session_name" == "home" ]]; then
+        "$TMUX_BIN" set-option -t "$session_name" @claude-mux-protected 1 2>/dev/null
+    fi
+
     # Delay between sessions in batch mode to avoid RC registration issues
     if [[ "$COMMAND" == "start" ]]; then
         sleep "$SLEEP_BETWEEN"
@@ -1466,10 +1471,6 @@ case "$COMMAND" in
                 else
                     shutdown_single_session "$_rs"
                     create_claude_session "$_rs" "$_restart_dir"
-                    # Restore protection for home session
-                    if [[ "$_rs" == "home" ]]; then
-                        "$TMUX_BIN" set-option -t "$_rs" @claude-mux-protected 1 2>/dev/null
-                    fi
                 fi
             done
             log "=== claude-mux restart complete ==="
@@ -1510,9 +1511,6 @@ case "$COMMAND" in
                         [[ -z "$_name" ]] && continue
                         log "Restarting session '$_name' in $_dir"
                         create_claude_session "$_name" "$_dir"
-                        if [[ "$_name" == "home" ]]; then
-                            "$TMUX_BIN" set-option -t "$_name" @claude-mux-protected 1 2>/dev/null
-                        fi
                     done <<< "$_restart_list"
                 fi
 
