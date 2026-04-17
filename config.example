@@ -1,4 +1,4 @@
-# ~/.claude-mux/config — claude-mux user configuration
+# ~/.claude-mux/config - claude-mux user configuration
 # Reference template. The installer (install.sh) creates ~/.claude-mux/config automatically.
 # For manual setup, copy this file to ~/.claude-mux/config and uncomment settings to override defaults.
 # This file is sourced by claude-mux at startup.
@@ -44,10 +44,10 @@
 
 # ── LaunchAgent ───────────────────────────────────────────────────────────────
 
-# LaunchAgent mode — what happens at login:
-#   none  — do nothing
-#   home  — launch a single 'home' session in $BASE_DIR (protected from shutdown) (default)
-#   batch — launch sessions for all managed projects
+# LaunchAgent mode - what happens at login:
+#   none  - do nothing
+#   home  - launch a single 'home' session in $BASE_DIR (protected from shutdown) (default)
+#   batch - launch sessions for all managed projects
 #LAUNCHAGENT_MODE=home
 
 # Model for the home session. Set to "" to use the default model.

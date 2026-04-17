@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**claude-mux** (Claude Code Multiplexer) — a shell script and macOS LaunchAgent that automatically creates and maintains persistent Claude Code sessions in tmux for every project directory under `~/Claude/`. Persistent sessions enable Claude Code Remote Control, giving full mobile app access to all projects via the Claude iOS/Android app.
+**claude-mux** (Claude Code Multiplexer) - a shell script and macOS LaunchAgent that automatically creates and maintains persistent Claude Code sessions in tmux for every project directory under `~/Claude/`. Persistent sessions enable Claude Code Remote Control, giving full mobile app access to all projects via the Claude iOS/Android app.
 
 ### Deliverables
 
-1. `claude-mux` — main script (Bash), installed to a bin directory in `$PATH`
-2. `com.user.claude-mux.plist` — LaunchAgent plist, installed to `~/Library/LaunchAgents/`
-3. `install.sh` — installer script
-4. `claude-mux-rc` — example config file template
+1. `claude-mux` - main script (Bash), installed to a bin directory in `$PATH`
+2. `com.user.claude-mux.plist` - LaunchAgent plist, installed to `~/Library/LaunchAgents/`
+3. `install.sh` - installer script
+4. `claude-mux-rc` - example config file template
 
 ## Architecture
 
@@ -29,7 +29,7 @@ The LaunchAgent runs the script at login with a 45-second startup delay for syst
 - **Logging**: all actions appended to `~/Library/Logs/claude-mux.log` (UTC ISO 8601, configurable via `LOG_DIR`)
 - **Default permission mode**: optionally sets Claude's `permissions.defaultMode` per project via `.claude/settings.local.json`
 - **Tmux-aware sessions**: each session gets `--append-system-prompt` with its tmux session name, so Claude knows how to send slash commands (e.g. `/model`, `/compact`) to itself via `tmux send-keys` (cross-session control available when `ALLOW_CROSS_SESSION_CONTROL=true`)
-- **Tmux quality-of-life**: sessions configured with mouse, 50k scrollback, clipboard, 256-color, reduced escape delay, extended keys, activity monitoring, and tab titles — all configurable via rc file
+- **Tmux quality-of-life**: sessions configured with mouse, 50k scrollback, clipboard, 256-color, reduced escape delay, extended keys, activity monitoring, and tab titles - all configurable via rc file
 - **Home session**: running `claude-mux` in `$BASE_DIR` (or LaunchAgent with `LAUNCHAGENT_MODE=home`) creates a session named `home`; always protected, requires `--force` to shut down; marked with `*` in status output
 - **LaunchAgent modes**: `LAUNCHAGENT_MODE=none` (default) / `home` / `batch`; plist invokes `claude-mux --autolaunch` which dispatches based on mode. Legacy `LAUNCHAGENT_ENABLED=true` treated as `batch` for backward compatibility.
 
@@ -80,10 +80,10 @@ Avoid LLM-stereotypical writing in all human-facing content (README, emails, pos
 
 ## Interactive commands
 
-Commands that attach to a tmux session (`-t`, and `-d`/`-n` without `--no-attach`) are interactive and should only be invoked by the user directly in a terminal — never by Claude from inside a session. From inside a session, attach would trigger `switch-client` on the user's terminal (unpredictable) or fail silently over Remote Control.
+Commands that attach to a tmux session (`-t`, and `-d`/`-n` without `--no-attach`) are interactive and should only be invoked by the user directly in a terminal - never by Claude from inside a session. From inside a session, attach would trigger `switch-client` on the user's terminal (unpredictable) or fail silently over Remote Control.
 
 When listing or documenting commands that Claude can run from within sessions:
-- `-l`, `-L`, `-s`, `--shutdown`, `--restart`, `--list-templates`, `-a` are safe — no attach
+- `-l`, `-L`, `-s`, `--shutdown`, `--restart`, `--list-templates`, `-a` are safe - no attach
 - `-d`, `-n` must always include `--no-attach`
 - `-t` should be excluded entirely from Claude-callable examples
 
@@ -104,16 +104,16 @@ Get the user's confirmation on the plan before writing code.
 ## Change checklist
 
 After any code change, verify whether these also need updating:
-- `README.md` — usage, feature descriptions, configuration table, examples
-- `claude-mux-rc` — example config template (will move to `config.example`)
-- `~/.claude-mux/config` — deployed user config (add new settings)
-- `install.sh` — installer-generated config, new flags
-- `implentation-spec.md` — startup sequence, settings table, function docs
-- `CLAUDE.md` — key behaviors, commands, config summary
-- **Injection prompt** — the system prompt injected into Claude sessions must reflect all current commands. Update both the `create_claude_session` and `launch_single_session` injection strings when commands are added, changed, or removed.
-- **Session System Prompt section in README** — must match the actual injection
+- `README.md` - usage, feature descriptions, configuration table, examples
+- `claude-mux-rc` - example config template (will move to `config.example`)
+- `~/.claude-mux/config` - deployed user config (add new settings)
+- `install.sh` - installer-generated config, new flags
+- `implentation-spec.md` - startup sequence, settings table, function docs
+- `CLAUDE.md` - key behaviors, commands, config summary
+- **Injection prompt** - the system prompt injected into Claude sessions must reflect all current commands. Update both the `create_claude_session` and `launch_single_session` injection strings when commands are added, changed, or removed.
+- **Session System Prompt section in README** - must match the actual injection
 
-- `ISSUES.md` — log new bugs and known issues; update resolved entries when fixed
+- `ISSUES.md` - log new bugs and known issues; update resolved entries when fixed
 
 Do not commit until all affected files are updated.
 
@@ -123,7 +123,7 @@ The script has two locations:
 - **Repo**: `~/Claude/development/claude-mux/claude-mux` (version-controlled)
 - **Installed**: `~/bin/claude-mux` (what actually runs, created by `install.sh`)
 
-Always edit the repo copy first, then **ask before committing** — do not run `git commit` or `git push` without explicit approval. After committing, deploy to the installed location:
+Always edit the repo copy first, then **ask before committing** - do not run `git commit` or `git push` without explicit approval. After committing, deploy to the installed location:
 
 ```bash
 # After editing and committing in the repo:
@@ -134,13 +134,13 @@ cp ~/Claude/development/claude-mux/claude-mux ~/bin/
 
 `~/.claude-mux/config` is the user config (not in this repo). A documented template is at `config.example`. Key variables:
 
-- `BASE_DIR` — root directory (default: `~/Claude`)
-- `LOG_DIR` — directory for `claude-mux.log` (default: `~/Library/Logs`)
-- `DEFAULT_PERMISSION_MODE` — Claude permission mode per project (default: `auto`)
-- `ALLOW_CROSS_SESSION_CONTROL` — allow sessions to send commands to each other (default: `false`)
-- `TEMPLATES_DIR` — CLAUDE.md template directory (default: `~/.claude-mux/templates`)
-- `DEFAULT_TEMPLATE` — default template for new projects (default: `default.md`)
-- `LAUNCHAGENT_MODE` — LaunchAgent behavior at login: `none` (default), `home`, or `batch`
+- `BASE_DIR` - root directory (default: `~/Claude`)
+- `LOG_DIR` - directory for `claude-mux.log` (default: `~/Library/Logs`)
+- `DEFAULT_PERMISSION_MODE` - Claude permission mode per project (default: `auto`)
+- `ALLOW_CROSS_SESSION_CONTROL` - allow sessions to send commands to each other (default: `false`)
+- `TEMPLATES_DIR` - CLAUDE.md template directory (default: `~/.claude-mux/templates`)
+- `DEFAULT_TEMPLATE` - default template for new projects (default: `default.md`)
+- `LAUNCHAGENT_MODE` - LaunchAgent behavior at login: `none` (default), `home`, or `batch`
 
 ## Implementation spec
 

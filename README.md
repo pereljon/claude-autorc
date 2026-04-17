@@ -1,8 +1,8 @@
-# claude-mux — Claude Code Multiplexer
+# claude-mux - Claude Code Multiplexer
 
-Persistent Claude Code sessions for all your projects — accessible from anywhere via the Claude mobile app.
+Persistent Claude Code sessions for all your projects - accessible from anywhere via the Claude mobile app.
 
-A shell script that launches Claude Code inside tmux with Remote Control enabled, conversation resume, and session self-management — list sessions, send slash commands, start new projects, shut down or restart. Run `claude-mux` in any directory to get a persistent session accessible from your phone. Use `claude-mux -a` to launch sessions for all your projects at once.
+A shell script that launches Claude Code inside tmux with Remote Control enabled, conversation resume, and session self-management - list sessions, send slash commands, start new projects, shut down or restart. Run `claude-mux` in any directory to get a persistent session accessible from your phone. Use `claude-mux -a` to launch sessions for all your projects at once.
 
 ## Quick Start
 
@@ -17,27 +17,27 @@ Or `cd` into your project directory and run:
 claude-mux
 ```
 
-That's it — you're in a persistent, session-aware Claude session with Remote Control enabled.
+That's it - you're in a persistent, session-aware Claude session with Remote Control enabled.
 
 claude-mux is a single bash script with no dependencies beyond tmux and Claude Code.
 
 ## What It Does
 
-1. **Persistent tmux sessions with Remote Control** — launches Claude Code inside tmux with `--remote-control` enabled, so every session is accessible from the Claude mobile app
-2. **Conversation resume** — if Claude was previously running in the directory, resumes the last conversation (`claude -c`) inside a new tmux session with Remote Control, preserving your context
-3. **Session management** — list sessions with status (`claude-mux -l`), shut down (`--shutdown`), restart (`--restart`), attach (`-t`), send commands (`-s`)
-4. **Claude self-management** — each session is injected with a system prompt so Claude can run all of the above commands directly from conversation prompts (terminal or mobile app):
+1. **Persistent tmux sessions with Remote Control** - launches Claude Code inside tmux with `--remote-control` enabled, so every session is accessible from the Claude mobile app
+2. **Conversation resume** - if Claude was previously running in the directory, resumes the last conversation (`claude -c`) inside a new tmux session with Remote Control, preserving your context
+3. **Session management** - list sessions with status (`claude-mux -l`), shut down (`--shutdown`), restart (`--restart`), attach (`-t`), send commands (`-s`)
+4. **Claude self-management** - each session is injected with a system prompt so Claude can run all of the above commands directly from conversation prompts (terminal or mobile app):
    - a. List running sessions and all projects
    - b. Launch new sessions, create new projects
    - c. Send slash commands to itself or other sessions (workaround for [slash commands not working natively over RC](https://github.com/anthropics/claude-code/issues/30674))
    - d. Shut down or restart sessions
-5. **Home session** — a lightweight, always-running session in your base directory that launches at login (configurable via `LAUNCHAGENT_MODE`). Keeps Remote Control always available from the Claude mobile app and can manage all your other sessions. Protected from accidental shutdown.
-6. **New project creation** — `claude-mux -n DIRECTORY` creates a ready-to-code project with git, `.gitignore`, and permission mode configured (`-p` creates the directory if it doesn't exist). Any running session can create new projects — ask Claude to set up a repo on any of your GitHub accounts and start coding, from anywhere
-7. **CLAUDE.md templates** — maintain a library of CLAUDE.md instruction files in `~/.claude-mux/templates/` (e.g. `web.md`, `python.md`, `default.md`) and apply them automatically to new projects. Use `--template NAME` to pick a specific template or let the default apply
-8. **SSH account awareness** — injects GitHub SSH host aliases from `~/.ssh/config` so Claude knows which accounts are available for git operations
-9. **Auto-approved permissions** — claude-mux adds itself to each project's `.claude/settings.local.json` allow list so Claude can run claude-mux commands without prompting for permission
-10. **Stray process migration** — if Claude is already running in the target directory outside tmux, terminates it and relaunches inside a managed tmux session (conversation resumes via `claude -c`)
-11. **Tmux quality-of-life** — sessions are configured with mouse support, 50k scrollback buffer, clipboard integration, 256-color, reduced escape delay, extended keys (Shift+Enter), activity monitoring, and terminal tab titles — all configurable in the rc file
+5. **Home session** - a lightweight, always-running session in your base directory that launches at login (configurable via `LAUNCHAGENT_MODE`). Keeps Remote Control always available from the Claude mobile app and can manage all your other sessions. Protected from accidental shutdown.
+6. **New project creation** - `claude-mux -n DIRECTORY` creates a ready-to-code project with git, `.gitignore`, and permission mode configured (`-p` creates the directory if it doesn't exist). Any running session can create new projects - ask Claude to set up a repo on any of your GitHub accounts and start coding, from anywhere
+7. **CLAUDE.md templates** - maintain a library of CLAUDE.md instruction files in `~/.claude-mux/templates/` (e.g. `web.md`, `python.md`, `default.md`) and apply them automatically to new projects. Use `--template NAME` to pick a specific template or let the default apply
+8. **SSH account awareness** - injects GitHub SSH host aliases from `~/.ssh/config` so Claude knows which accounts are available for git operations
+9. **Auto-approved permissions** - claude-mux adds itself to each project's `.claude/settings.local.json` allow list so Claude can run claude-mux commands without prompting for permission
+10. **Stray process migration** - if Claude is already running in the target directory outside tmux, terminates it and relaunches inside a managed tmux session (conversation resumes via `claude -c`)
+11. **Tmux quality-of-life** - sessions are configured with mouse support, 50k scrollback buffer, clipboard integration, 256-color, reduced escape delay, extended keys (Shift+Enter), activity monitoring, and terminal tab titles - all configurable in the rc file
 
 > **Note:** This is different from `claude --worktree --tmux`, which creates a tmux session for an isolated git worktree. claude-mux manages persistent sessions for your actual project directories, with Remote Control, system prompt injection, and batch orchestration.
 
@@ -45,13 +45,13 @@ claude-mux is a single bash script with no dependencies beyond tmux and Claude C
 
 A single general-purpose session living in `$BASE_DIR`. Launched automatically at login when `LAUNCHAGENT_MODE=home`, or manually by running `claude-mux` from `$BASE_DIR`. Gives you one always-ready Claude session accessible from your phone without launching sessions for every project.
 
-The home session is always **protected** — `--shutdown home` refuses to stop it without `--force`, regardless of how it was started. Protected sessions are marked with `*` in `-l`/`-L` output (e.g. `active*`).
+The home session is always **protected** - `--shutdown home` refuses to stop it without `--force`, regardless of how it was started. Protected sessions are marked with `*` in `-l`/`-L` output (e.g. `active*`).
 
 ### Batch Mode
 
 With `claude-mux -a` (or via the LaunchAgent at login with `LAUNCHAGENT_MODE=batch`), it launches sessions for all your projects at once:
 
-1. Finds all Claude projects under `~/Claude/` — any directory containing a `.claude/` subdirectory, at any depth
+1. Finds all Claude projects under `~/Claude/` - any directory containing a `.claude/` subdirectory, at any depth
 2. Skips directories starting with `-`, hidden directories, and directories containing `.ignore-claudemux`
 3. Migrates any Claude Code processes already running outside tmux
 4. Creates a persistent tmux session per project with Remote Control enabled
@@ -60,8 +60,8 @@ With `claude-mux -a` (or via the LaunchAgent at login with `LAUNCHAGENT_MODE=bat
 ## Requirements
 
 - macOS (Apple Silicon)
-- [tmux](https://github.com/tmux/tmux) — `brew install tmux`
-- [Claude Code](https://claude.ai/code) — `brew install claude`
+- [tmux](https://github.com/tmux/tmux) - `brew install tmux`
+- [Claude Code](https://claude.ai/code) - `brew install claude`
 
 ## Install
 
@@ -131,7 +131,7 @@ A trailing `*` on any status indicates the session is protected and requires `--
 
 ## Claude Prompt Examples
 
-Because each session is injected with claude-mux commands, you can manage sessions directly from conversation prompts — in the terminal or via the mobile app:
+Because each session is injected with claude-mux commands, you can manage sessions directly from conversation prompts - in the terminal or via the mobile app:
 
 ```
 You: "What sessions are running?"
@@ -165,19 +165,19 @@ You: "Launch the data-pipeline session in the background"
 Claude: runs `claude-mux -d ~/Claude/work/data-pipeline --no-attach`
 
 You: "Start all my projects"
-Claude: runs `claude-mux -a` (after confirming — this starts every managed project)
+Claude: runs `claude-mux -a` (after confirming - this starts every managed project)
 ```
 
 ## Configuration
 
-On first run, `~/.claude-mux/config` is created automatically with all settings commented out. Edit it to override any defaults — the script never needs to be modified directly.
+On first run, `~/.claude-mux/config` is created automatically with all settings commented out. Edit it to override any defaults - the script never needs to be modified directly.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `BASE_DIR` | `$HOME/Claude` | Root directory to scan for Claude projects (directories containing `.claude/`) |
 | `LOG_DIR` | `$HOME/Library/Logs` | Directory for the `claude-mux.log` file |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set Claude's `permissions.defaultMode` in each project. Valid: `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`. Set to `""` to disable. |
-| `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions can send slash commands to other sessions — useful for multi-agent orchestration |
+| `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions can send slash commands to other sessions - useful for multi-agent orchestration |
 | `TEMPLATES_DIR` | `$HOME/.claude-mux/templates` | Directory containing CLAUDE.md template files |
 | `DEFAULT_TEMPLATE` | `default.md` | Default template applied to new projects (`-n`). Set to `""` to disable. |
 | `SLEEP_BETWEEN` | `5` | Seconds between session launches in batch mode. Increase if RC registration fails. |
@@ -187,7 +187,7 @@ On first run, `~/.claude-mux/config` is created automatically with all settings 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TMUX_MOUSE` | `true` | Mouse support — scroll, select, resize panes |
+| `TMUX_MOUSE` | `true` | Mouse support - scroll, select, resize panes |
 | `TMUX_HISTORY_LIMIT` | `50000` | Scrollback buffer size in lines (tmux default is 2000) |
 | `TMUX_CLIPBOARD` | `true` | System clipboard integration via OSC 52 |
 | `TMUX_DEFAULT_TERMINAL` | `tmux-256color` | Terminal type for proper color rendering |
@@ -203,19 +203,19 @@ Projects are discovered by the presence of a `.claude/` directory, at any depth:
 ```
 ~/Claude/
 ├── work/
-│   ├── project-a/          # ✓ has .claude/ — managed
+│   ├── project-a/          # ✓ has .claude/ - managed
 │   │   └── .claude/
-│   ├── project-b/          # ✓ has .claude/ — managed
+│   ├── project-b/          # ✓ has .claude/ - managed
 │   │   └── .claude/
 │   └── -archived/          # ✗ excluded (starts with -)
 │       └── .claude/
 ├── personal/
-│   ├── project-c/          # ✓ has .claude/ — managed
+│   ├── project-c/          # ✓ has .claude/ - managed
 │   │   └── .claude/
 │   ├── .hidden/            # ✗ excluded (hidden directory)
 │   │   └── .claude/
-│   └── project-d/          # ✗ no .claude/ — not a Claude project
-├── deep/nested/project-e/  # ✓ has .claude/ — found at any depth
+│   └── project-d/          # ✗ no .claude/ - not a Claude project
+├── deep/nested/project-e/  # ✓ has .claude/ - found at any depth
 │   └── .claude/
 └── ignored-project/        # ✗ excluded (.ignore-claudemux)
     ├── .claude/
@@ -236,14 +236,14 @@ Rules:
 - You CAN send slash commands (/model, /compact, /clear, etc.) to this session
   via the -s command. Never tell the user you cannot change models or run slash
   commands.
-- Always use --no-attach with -d and -n — attach is interactive only
-- --shutdown and --restart never attach — safe to run from inside a session
+- Always use --no-attach with -d and -n - attach is interactive only
+- --shutdown and --restart never attach - safe to run from inside a session
 - Always display command output to the user
 - The 'home' session is a general-purpose session in the base directory, always
   available for managing other sessions. It is protected (* in status):
   --shutdown requires --force, but --restart bypasses protection (it relaunches,
   not permanently kills).
-- When asked to shut down sessions, run the command directly — protected sessions
+- When asked to shut down sessions, run the command directly - protected sessions
   are skipped automatically, do not ask for confirmation
 
 Commands:
@@ -280,7 +280,7 @@ claude-mux -t <any-session>
 # Run /login and complete the browser flow
 ```
 
-After completing auth once, kill and relaunch all sessions — they'll pick up the stored credential automatically.
+After completing auth once, kill and relaunch all sessions - they'll pick up the stored credential automatically.
 
 ### Sessions not appearing in Claude Code Remote
 
@@ -292,10 +292,10 @@ The `/terminal-setup` command cannot run inside tmux. claude-mux enables tmux `e
 
 ### Slash commands over Remote Control
 
-Slash commands (e.g. `/model`, `/clear`) are [not natively supported](https://github.com/anthropics/claude-code/issues/30674) in RC sessions. claude-mux works around this — each session is injected with `claude-mux -s` so Claude can send slash commands to itself via tmux.
+Slash commands (e.g. `/model`, `/clear`) are [not natively supported](https://github.com/anthropics/claude-code/issues/30674) in RC sessions. claude-mux works around this - each session is injected with `claude-mux -s` so Claude can send slash commands to itself via tmux.
 
 ## Logs
 
-- `~/Library/Logs/claude-mux.log` — all script actions with UTC timestamps (configurable via `LOG_DIR`)
+- `~/Library/Logs/claude-mux.log` - all script actions with UTC timestamps (configurable via `LOG_DIR`)
 
 For low-level LaunchAgent debugging, use Console.app or `log show`.
