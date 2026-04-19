@@ -145,6 +145,7 @@ cp ~/Claude/development/claude-mux/claude-mux ~/bin/
 ## TODO
 
 - `templates/` in repo root: add example CLAUDE.md templates (web, python, etc.) and optionally copy them to `~/.claude-mux/templates/` during install
+- `CHANGELOG.md`: create from git history, maintain per tagged version
 
 ## Implementation spec
 
