@@ -38,9 +38,9 @@
 
 ## Resolved
 
-### --restart returns exit code 1 despite success
-**Resolved in:** v1.2.0 (commit a10c0c2)
-**Fix:** Added explicit `exit 0` at end of restart paths.
+### Multiple commands return exit code 1 despite success
+**Resolved in:** v1.2.0 (restart), v1.3.0 (all commands)
+**Fix:** Added explicit `exit 0` after every dispatch path in the case statement. The last command in a function can leak a non-zero exit code from internal tests or grep calls.
 
 ### --dry-run gives misleading output for --restart
 **Resolved in:** v1.2.0 (commit a10c0c2)

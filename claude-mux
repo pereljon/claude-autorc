@@ -1443,13 +1443,13 @@ autolaunch_dispatch() {
 }
 
 case "$COMMAND" in
-    autolaunch) autolaunch_dispatch ;;
-    start)    start_sessions ;;
-    launch)   launch_single_session ;;
-    new)      create_new_project ;;
-    list)     status_claude_sessions ;;
-    list-all) status_claude_sessions true ;;
-    list-templates) list_templates ;;
+    autolaunch) autolaunch_dispatch; exit 0 ;;
+    start)    start_sessions; exit 0 ;;
+    launch)   launch_single_session; exit 0 ;;
+    new)      create_new_project; exit 0 ;;
+    list)     status_claude_sessions; exit 0 ;;
+    list-all) status_claude_sessions true; exit 0 ;;
+    list-templates) list_templates; exit 0 ;;
     shutdown) shutdown_claude_sessions; exit 0 ;;
     restart)
         # --restart bypasses protection (it relaunches, not permanently kills)
