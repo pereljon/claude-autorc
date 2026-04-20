@@ -30,14 +30,14 @@ claude-mux is a single bash script with no dependencies beyond tmux and Claude C
    - a. List running sessions and all projects
    - b. Launch new sessions, create new projects
    - c. Send slash commands to itself or other sessions (workaround for [slash commands not working natively over RC](https://github.com/anthropics/claude-code/issues/30674))
-   - d. Shut down or restart sessions
+   - d. Shut down, restart, or switch permission modes of sessions
 5. **Home session** - a lightweight, always-running session in your base directory that launches at login (configurable via `LAUNCHAGENT_MODE`). Keeps Remote Control always available from the Claude mobile app and can manage all your other sessions. Protected from accidental shutdown.
 6. **New project creation** - `claude-mux -n DIRECTORY` creates a ready-to-code project with git, `.gitignore`, and permission mode configured (`-p` creates the directory if it doesn't exist). Any running session can create new projects - ask Claude to set up a repo on any of your GitHub accounts and start coding, from anywhere
 7. **CLAUDE.md templates** - maintain a library of CLAUDE.md instruction files in `~/.claude-mux/templates/` (e.g. `web.md`, `python.md`, `default.md`) and apply them automatically to new projects. Use `--template NAME` to pick a specific template or let the default apply
 8. **SSH account awareness** - injects GitHub SSH host aliases from `~/.ssh/config` so Claude knows which accounts are available for git operations
 9. **Auto-approved permissions** - claude-mux adds itself to each project's `.claude/settings.local.json` allow list so Claude can run claude-mux commands without prompting for permission
 10. **Stray process migration** - if Claude is already running in the target directory outside tmux, terminates it and relaunches inside a managed tmux session (conversation resumes via `claude -c`)
-11. **Tmux quality-of-life** - sessions are configured with mouse support, 50k scrollback buffer, clipboard integration, 256-color, reduced escape delay, extended keys (Shift+Enter), activity monitoring, and terminal tab titles - all configurable in the rc file
+11. **Tmux quality-of-life** - sessions are configured with mouse support, 50k scrollback buffer, clipboard integration, 256-color, reduced escape delay, extended keys (Shift+Enter), activity monitoring, and terminal tab titles - all configurable in `~/.claude-mux/config`
 
 > **Note:** This is different from `claude --worktree --tmux`, which creates a tmux session for an isolated git worktree. claude-mux manages persistent sessions for your actual project directories, with Remote Control, system prompt injection, and batch orchestration.
 
@@ -99,7 +99,7 @@ claude-mux -n ~/app --template web  # new project with a specific CLAUDE.md temp
 claude-mux --list-templates      # show available CLAUDE.md templates
 claude-mux -t my-app             # attach to an existing tmux session
 claude-mux -s my-app '/model sonnet' # send a slash command to a session
-claude-mux -l                    # list active sessions (active + running + stopped)
+claude-mux -l                    # list sessions by status (active, running, stopped)
 claude-mux -L                    # list all projects (active + idle)
 claude-mux --shutdown            # gracefully exit all managed Claude sessions
 claude-mux --shutdown my-app     # shut down a specific session
@@ -191,6 +191,7 @@ On first run, `~/.claude-mux/config` is created automatically with all settings 
 | `TEMPLATES_DIR` | `$HOME/.claude-mux/templates` | Directory containing CLAUDE.md template files |
 | `DEFAULT_TEMPLATE` | `default.md` | Default template applied to new projects (`-n`). Set to `""` to disable. |
 | `SLEEP_BETWEEN` | `5` | Seconds between session launches in batch mode. Increase if RC registration fails. |
+| `HOME_SESSION_MODEL` | `""` | Model for the home session. Valid: `sonnet`, `haiku`, `opus`. Empty inherits Claude's default. |
 | `LAUNCHAGENT_MODE` | `home` | LaunchAgent behavior at login: `none` (do nothing), `home` (launch protected home session), `batch` (launch all managed sessions). Legacy `LAUNCHAGENT_ENABLED=true` is treated as `batch`. |
 
 **Tmux session options** (all configurable, all enabled by default):

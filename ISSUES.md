@@ -2,13 +2,6 @@
 
 ## Open
 
-### Claude ignores injection and claims it cannot run slash commands
-**Severity:** High
-**Status:** Mitigated (injection updated)
-**Description:** When asked to change models or run slash commands, Claude's training instinct overrides the injection and it responds with "I can't change the model." The -s command is clearly documented in the injection but Claude defaults to its general knowledge.
-**Mitigation:** Added explicit rule to injection: "You CAN send slash commands... Never tell the user you cannot change models or run slash commands."
-**Root cause:** Claude's base training strongly believes it cannot control its own model/settings, and this overrides system prompt instructions in some cases.
-
 ### Phantom message replay causes unintended actions
 **Severity:** High
 **Status:** Open - cannot fully fix from claude-mux side
@@ -37,6 +30,12 @@
 **Workaround:** Core script works on Linux with manual path adjustments. No systemd unit file provided.
 
 ## Resolved
+
+### Claude ignores injection and claims it cannot run slash commands
+**Resolved in:** v1.2.0 (injection updated)
+**Fix:** Added explicit rule to injection: "You CAN send slash commands (`/model`, `/compact`, `/clear`, etc.) to this session via the `-s` command. Never tell the user you cannot change models or run slash commands." Claude's base training inclines it to believe it cannot control its own model/settings; the explicit rule overrides this in practice.
+
+
 
 ### Multiple commands return exit code 1 despite success
 **Resolved in:** v1.2.0 (restart), v1.3.0 (all commands)

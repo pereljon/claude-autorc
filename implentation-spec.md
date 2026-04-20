@@ -31,8 +31,8 @@ Exclusion rules: hidden directories (`.`-prefixed) are pruned from search, direc
 
 ## Deliverables
 
-1. `~/Claude/claude-mux` — main script
-2. `com.user.claude-mux.plist` — LaunchAgent plist (user installs to `~/Library/LaunchAgents/`)
+1. `claude-mux` — main script, installed to a bin directory in `$PATH` by `install.sh`
+2. `com.user.claude-mux.plist` — LaunchAgent plist, installed to `~/Library/LaunchAgents/`
 3. `config.example` — example user config file
 4. `install.sh` — installer script
 
@@ -49,7 +49,8 @@ On first run, the script creates `~/.claude-mux/config` with all settings commen
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set `permissions.defaultMode` in `.claude/settings.local.json` per project. Valid: `""` (disabled), `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions` |
 | `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions are told they can send slash commands to other sessions via tmux. When `false`, sessions can only send commands to themselves. |
 | `SLEEP_BETWEEN` | `5` | Seconds between session launches in batch mode |
-| `LAUNCHAGENT_MODE` | `none` | LaunchAgent at-login behavior: `none`, `home` (single protected session in `$BASE_DIR`), or `batch` (all managed sessions). Legacy `LAUNCHAGENT_ENABLED=true` is treated as `batch`. |
+| `LAUNCHAGENT_MODE` | `home` | LaunchAgent at-login behavior: `none`, `home` (single protected session in `$BASE_DIR`), or `batch` (all managed sessions). Legacy `LAUNCHAGENT_ENABLED=true` is treated as `batch`. |
+| `HOME_SESSION_MODEL` | `""` | Model for the home session (`sonnet`, `haiku`, `opus`). Empty string inherits Claude's default. |
 | `TMUX_MOUSE` | `true` | Mouse support (scroll, select, resize) |
 | `TMUX_HISTORY_LIMIT` | `50000` | Scrollback buffer size in lines |
 | `TMUX_CLIPBOARD` | `true` | System clipboard integration via OSC 52 |
@@ -162,7 +163,7 @@ Builds a system prompt via `build_system_prompt(session_name)` and passes it via
 - Always use `--no-attach` with `-d` and `-n`
 - `--shutdown` and `--restart` are safe from inside a session
 - Home session is protected; `--shutdown home` requires `--force`
-- When asked for "status", report session name, model, context estimate, then run `-l`
+- When asked for "status", report session name, current model, current permission mode, context estimate, then run `-l`
 
 **Commands** — every claude-mux command with the absolute binary path:
 ```
@@ -357,8 +358,8 @@ In `--dry-run` mode, output goes to stdout only (not the log file).
 ### Phase 1: Dry Run
 
 ```bash
-chmod +x ~/Claude/claude-mux
-~/Claude/claude-mux --dry-run
+chmod +x ~/bin/claude-mux
+claude-mux --dry-run
 ```
 
 Verify output lists correct directories, session names, git init targets, and detected GitHub SSH accounts. Confirm no files are created or modified.
@@ -375,7 +376,7 @@ Test with one project directory:
 ### Phase 3: Full Run
 
 ```bash
-~/Claude/claude-mux
+claude-mux
 claude-mux -L
 ```
 
