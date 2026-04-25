@@ -35,6 +35,8 @@ Exclusion rules: hidden directories (`.`-prefixed) are pruned from search, direc
 2. `com.user.claude-mux.plist` — LaunchAgent plist, installed to `~/Library/LaunchAgents/`
 3. `config.example` — example user config file
 4. `install.sh` — installer script
+5. `README.md` — user-facing documentation (canonical English source)
+6. `translations/README.*.md` — translated READMEs (`es`, `fr`, `de`, `pt-BR`, `ja`, `ko`, `it`, `ru`, `zh-CN`, `he`, `ar`, `hi`). Must be kept in sync with `README.md`; update or flag for re-translation whenever `README.md` is modified.
 
 ## User Configuration: ~/.claude-mux/config
 

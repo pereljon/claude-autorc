@@ -116,6 +116,7 @@ Get the user's confirmation on the plan before writing code.
 
 After any code change, verify whether these also need updating:
 - `README.md` - usage, feature descriptions, configuration table, examples
+- `translations/README.*.md` - translated READMEs in the `translations/` folder must be kept in sync with `README.md`. When `README.md` changes, either update each translation or flag the relevant translated files for re-translation. Current languages: `es`, `fr`, `de`, `pt-BR`, `ja`, `ko`, `it`, `ru`, `zh-CN`, `he`, `ar`, `hi`
 - `config.example` - example config template
 - `~/.claude-mux/config` - deployed user config (add new settings)
 - `install.sh` - installer-generated config, new flags

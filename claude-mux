@@ -557,6 +557,7 @@ $(guide)
 - When user says: compact this session / compact session NAME — send /compact via -s to the named or current session
 - When user says: clear this session / clear session NAME — send /clear via -s to the named or current session
 - When user says: list templates — run claude-mux --list-templates
+- These trigger phrases work in any language. If the user types the equivalent intent in their native language (Spanish, French, German, Japanese, Hebrew, Arabic, Hindi, etc.), infer the intent and run the corresponding command. Output of claude-mux commands (lists, status, guide) is shown verbatim regardless of input language.
 
 Commands:
   -s '${session_name}' '/command'  Send slash command ${send_scope}
@@ -1046,7 +1047,9 @@ except: sys.exit(1)
         return
     fi
 
-    local mux_rules="[\"Bash(${CLAUDE_MUX_BIN})\", \"Bash(${CLAUDE_MUX_BIN} *)\"]"
+    # Two forms: bare name (when Claude runs `claude-mux ...` from PATH) and
+    # absolute path (when injection or scripts use the full path).
+    local mux_rules="[\"Bash(claude-mux)\", \"Bash(claude-mux *)\", \"Bash(${CLAUDE_MUX_BIN})\", \"Bash(${CLAUDE_MUX_BIN} *)\"]"
 
     if [[ -f "$settings_file" ]]; then
         if ! /usr/bin/python3 - "$settings_file" "$mux_rules" >> "$LOG_FILE" 2>&1 << 'PYEOF'
