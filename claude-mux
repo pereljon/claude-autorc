@@ -64,14 +64,13 @@ DEFAULT_TEMPLATE="default.md"
 # LaunchAgent mode — what happens at login:
 #   none  — do nothing
 #   home  — launch a single 'home' session in $BASE_DIR (protected from shutdown)
-#   batch — launch sessions for all managed projects (heavy)
 LAUNCHAGENT_MODE=home
 
 # Model for the home session. Set to "" to use the default model.
 HOME_SESSION_MODEL="sonnet"
 
-# Legacy: LAUNCHAGENT_ENABLED=true is treated as LAUNCHAGENT_MODE=batch for
-# backward compatibility. Use LAUNCHAGENT_MODE going forward.
+# Legacy: LAUNCHAGENT_ENABLED=true is treated as LAUNCHAGENT_MODE=home (was
+# LAUNCHAGENT_MODE=batch before batch was removed).
 LAUNCHAGENT_ENABLED=false
 
 # ── Flag parsing ───────────────────────────────────────────────────────────────
@@ -209,6 +208,10 @@ while [[ $# -gt 0 ]]; do
             [[ $# -lt 2 || "$2" == -* ]] && { echo "ERROR: -t requires a session name" >&2; exit 1; }
             set_command "-t" "attach"
             TARGET_SESSION="$2"; shift 2 ;;
+        # NOTE: -a (batch launch of all projects) is under review for removal.
+        # Home session + conversational on-demand starts cover most use cases,
+        # and running every project simultaneously is costly in RAM/CPU/tokens.
+        # Retained for now as a manual escape hatch; revisit after usage review.
         -a|--all)         set_command "-a" "start"; shift ;;
         --autolaunch)     set_command "--autolaunch" "autolaunch"; shift ;;
         --force)          FORCE=true; shift ;;
@@ -357,7 +360,6 @@ if [[ ! -f "$CLAUDE_MUX_CONFIG" ]]; then
 # LaunchAgent mode — what happens at login:
 #   none  — do nothing
 #   home  — launch a single 'home' session in \$BASE_DIR (protected from shutdown) (default)
-#   batch — launch sessions for all managed projects
 #LAUNCHAGENT_MODE=home
 
 # Model for the home session. Set to "" to use the default model.
@@ -376,16 +378,20 @@ if [[ -n "$_cfg_perms" && "$_cfg_perms" != "600" && "$_cfg_perms" != "400" ]]; t
 fi
 source "$CLAUDE_MUX_CONFIG"
 
-# Backward compat: LAUNCHAGENT_ENABLED=true (legacy) → LAUNCHAGENT_MODE=batch
+# Backward compat: LAUNCHAGENT_ENABLED=true (legacy) → LAUNCHAGENT_MODE=home
+# (Previously mapped to batch, but batch mode has been removed.)
 if [[ "$LAUNCHAGENT_MODE" == "none" && "$LAUNCHAGENT_ENABLED" == "true" ]]; then
-    LAUNCHAGENT_MODE="batch"
+    LAUNCHAGENT_MODE="home"
 fi
 
 # Validate LAUNCHAGENT_MODE
 case "$LAUNCHAGENT_MODE" in
-    none|home|batch) ;;
+    none|home) ;;
+    batch)
+        echo "WARN: LAUNCHAGENT_MODE=batch has been removed — treating as 'home'" >&2
+        LAUNCHAGENT_MODE="home" ;;
     *)
-        echo "ERROR: Invalid LAUNCHAGENT_MODE '$LAUNCHAGENT_MODE' — must be none, home, or batch" >&2
+        echo "ERROR: Invalid LAUNCHAGENT_MODE '$LAUNCHAGENT_MODE' — must be none or home" >&2
         exit 1
         ;;
 esac
@@ -1185,7 +1191,7 @@ LAUNCH_EOF
         "$TMUX_BIN" set-option -t "$session_name" @claude-mux-protected 1 2>/dev/null
     fi
 
-    # Delay between sessions in batch mode to avoid RC registration issues
+    # Delay between sessions during -a launches to avoid RC registration issues
     if [[ "$COMMAND" == "start" ]]; then
         sleep "$SLEEP_BETWEEN"
     fi
@@ -1574,10 +1580,6 @@ autolaunch_dispatch() {
             LAUNCH_SESSION_NAME="home"
             NO_ATTACH=true
             launch_single_session
-            ;;
-        batch)
-            log "LaunchAgent autolaunch: starting batch mode"
-            start_sessions
             ;;
     esac
 }

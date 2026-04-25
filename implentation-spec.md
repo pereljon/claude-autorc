@@ -48,8 +48,8 @@ On first run, the script creates `~/.claude-mux/config` with all settings commen
 | `LOG_DIR` | `$HOME/Library/Logs` | Directory for the `claude-mux.log` file |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set `permissions.defaultMode` in `.claude/settings.local.json` per project. Valid: `""` (disabled), `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions` |
 | `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions are told they can send slash commands to other sessions via tmux. When `false`, sessions can only send commands to themselves. |
-| `SLEEP_BETWEEN` | `5` | Seconds between session launches in batch mode |
-| `LAUNCHAGENT_MODE` | `home` | LaunchAgent at-login behavior: `none`, `home` (single protected session in `$BASE_DIR`), or `batch` (all managed sessions). Legacy `LAUNCHAGENT_ENABLED=true` is treated as `batch`. |
+| `SLEEP_BETWEEN` | `5` | Seconds between session launches when `-a` is used |
+| `LAUNCHAGENT_MODE` | `home` | LaunchAgent at-login behavior: `none` or `home` (single protected session in `$BASE_DIR`). Legacy `LAUNCHAGENT_ENABLED=true` is treated as `home` (previously `batch`, removed). |
 | `HOME_SESSION_MODEL` | `""` | Model for the home session (`sonnet`, `haiku`, `opus`). Empty string inherits Claude's default. |
 | `TMUX_MOUSE` | `true` | Mouse support (scroll, select, resize) |
 | `TMUX_HISTORY_LIMIT` | `50000` | Scrollback buffer size in lines |

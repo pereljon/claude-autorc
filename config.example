@@ -47,7 +47,6 @@
 # LaunchAgent mode - what happens at login:
 #   none  - do nothing
 #   home  - launch a single 'home' session in $BASE_DIR (protected from shutdown) (default)
-#   batch - launch sessions for all managed projects
 #LAUNCHAGENT_MODE=home
 
 # Model for the home session. Set to "" to use the default model.

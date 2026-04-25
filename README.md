@@ -2,7 +2,7 @@
 
 Persistent Claude Code sessions for all your projects - accessible from anywhere via the Claude mobile app.
 
-A shell script that launches Claude Code inside tmux with Remote Control enabled, conversation resume, and session self-management - list sessions, send slash commands, start new projects, shut down or restart. Run `claude-mux` in any directory to get a persistent session accessible from your phone. Use `claude-mux -a` to launch sessions for all your projects at once.
+A shell script that launches Claude Code inside tmux with Remote Control enabled, conversation resume, and session self-management - list sessions, send slash commands, start new projects, shut down or restart. Run `claude-mux` in any directory to get a persistent session accessible from your phone.
 
 ## Quick Start
 
@@ -42,23 +42,13 @@ claude-mux is a single bash script with no dependencies beyond tmux and Claude C
 10. **Stray process migration** - if Claude is already running in the target directory outside tmux, terminates it and relaunches inside a managed tmux session (conversation resumes via `claude -c`)
 11. **Tmux quality-of-life** - sessions are configured with mouse support, 50k scrollback buffer, clipboard integration, 256-color, reduced escape delay, extended keys (Shift+Enter), activity monitoring, and terminal tab titles - all configurable in `~/.claude-mux/config`
 
-> **Note:** This is different from `claude --worktree --tmux`, which creates a tmux session for an isolated git worktree. claude-mux manages persistent sessions for your actual project directories, with Remote Control, system prompt injection, and batch orchestration.
+> **Note:** This is different from `claude --worktree --tmux`, which creates a tmux session for an isolated git worktree. claude-mux manages persistent sessions for your actual project directories, with Remote Control and system prompt injection.
 
 ### Home Session
 
 A single general-purpose session living in `$BASE_DIR`. Launched automatically at login when `LAUNCHAGENT_MODE=home`, or manually by running `claude-mux` from `$BASE_DIR`. Gives you one always-ready Claude session accessible from your phone without launching sessions for every project.
 
 The home session is always **protected** - `--shutdown home` refuses to stop it without `--force`, regardless of how it was started. Protected sessions are marked with `*` in `-l`/`-L` output (e.g. `active*`).
-
-### Batch Mode
-
-With `claude-mux -a` (or via the LaunchAgent at login with `LAUNCHAGENT_MODE=batch`), it launches sessions for all your projects at once:
-
-1. Finds all Claude projects under `~/Claude/` - any directory containing a `.claude/` subdirectory, at any depth
-2. Skips directories starting with `-`, hidden directories, and directories containing `.ignore-claudemux`
-3. Migrates any Claude Code processes already running outside tmux
-4. Creates a persistent tmux session per project with Remote Control enabled
-5. Resumes the last conversation (`claude -c`), falling back to a fresh start
 
 ## Requirements
 
@@ -81,7 +71,6 @@ Options:
 ```bash
 ./install.sh --non-interactive                     # skip prompts, use defaults
 ./install.sh --base-dir ~/work/claude              # use a different base directory
-./install.sh --launchagent-mode batch              # launch all sessions at login
 ./install.sh --launchagent-mode none               # disable LaunchAgent behavior
 ./install.sh --home-model haiku                    # use Haiku for home session
 ./install.sh --no-launchagent                      # skip LaunchAgent installation entirely
@@ -194,9 +183,9 @@ On first run, `~/.claude-mux/config` is created automatically with all settings 
 | `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions can send slash commands to other sessions - useful for multi-agent orchestration |
 | `TEMPLATES_DIR` | `$HOME/.claude-mux/templates` | Directory containing CLAUDE.md template files |
 | `DEFAULT_TEMPLATE` | `default.md` | Default template applied to new projects (`-n`). Set to `""` to disable. |
-| `SLEEP_BETWEEN` | `5` | Seconds between session launches in batch mode. Increase if RC registration fails. |
+| `SLEEP_BETWEEN` | `5` | Seconds between session launches when `-a` is used. Increase if RC registration fails. |
 | `HOME_SESSION_MODEL` | `""` | Model for the home session. Valid: `sonnet`, `haiku`, `opus`. Empty inherits Claude's default. |
-| `LAUNCHAGENT_MODE` | `home` | LaunchAgent behavior at login: `none` (do nothing), `home` (launch protected home session), `batch` (launch all managed sessions). Legacy `LAUNCHAGENT_ENABLED=true` is treated as `batch`. |
+| `LAUNCHAGENT_MODE` | `home` | LaunchAgent behavior at login: `none` (do nothing) or `home` (launch protected home session). Legacy `LAUNCHAGENT_ENABLED=true` is treated as `home`. |
 
 **Tmux session options** (all configurable, all enabled by default):
 

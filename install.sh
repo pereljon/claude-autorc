@@ -33,7 +33,7 @@ Options:
                           Valid: default, acceptEdits, plan, auto, dontAsk, bypassPermissions, "" (disabled)
                           (default: auto)
   --cross-session-control Enable sessions to send slash commands to each other (multi-agent)
-  --launchagent-mode MODE Set LaunchAgent behavior at login: none, home (default), batch
+  --launchagent-mode MODE Set LaunchAgent behavior at login: none, home (default)
   --home-model MODEL      Model for the home session (default: sonnet)
   --no-launchagent        Skip LaunchAgent installation entirely
   --non-interactive       Skip interactive prompts, use defaults/flags only
@@ -42,7 +42,7 @@ Options:
 Examples:
   ./install.sh
   ./install.sh --non-interactive
-  ./install.sh --base-dir ~/work/claude --launchagent-mode batch
+  ./install.sh --base-dir ~/work/claude --launchagent-mode none
   ./install.sh --no-launchagent
 EOF
 }
@@ -65,8 +65,8 @@ while [[ $# -gt 0 ]]; do
             [[ $# -lt 2 ]] && { echo "ERROR: --launchagent-mode requires a value" >&2; exit 1; }
             LAUNCHAGENT_MODE="$2"
             case "$LAUNCHAGENT_MODE" in
-                none|home|batch) ;;
-                *) echo "ERROR: --launchagent-mode must be none, home, or batch" >&2; exit 1 ;;
+                none|home) ;;
+                *) echo "ERROR: --launchagent-mode must be none or home" >&2; exit 1 ;;
             esac
             shift 2 ;;
         --home-model)
@@ -289,7 +289,7 @@ ${cross_line}
 #DEFAULT_TEMPLATE="default.md"
 
 # ── LaunchAgent ───────────────────────────────────────────────────────────────
-# LaunchAgent mode at login: none, home (default), batch
+# LaunchAgent mode at login: none, home (default)
 ${launchagent_line}
 
 # Model for the home session. Set to "" to use the default model.

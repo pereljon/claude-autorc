@@ -31,7 +31,7 @@ The LaunchAgent runs the script at login with a 45-second startup delay for syst
 - **Tmux-aware sessions**: each session gets `--append-system-prompt` with its tmux session name, so Claude knows how to send slash commands (e.g. `/model`, `/compact`) to itself via `tmux send-keys` (cross-session control available when `ALLOW_CROSS_SESSION_CONTROL=true`)
 - **Tmux quality-of-life**: sessions configured with mouse, 50k scrollback, clipboard, 256-color, reduced escape delay, extended keys, activity monitoring, and tab titles - all configurable via rc file
 - **Home session**: running `claude-mux` in `$BASE_DIR` (or LaunchAgent with `LAUNCHAGENT_MODE=home`) creates a session named `home`; always protected, requires `--force` to shut down; marked with `*` in status output
-- **LaunchAgent modes**: `LAUNCHAGENT_MODE=none` (default) / `home` / `batch`; plist invokes `claude-mux --autolaunch` which dispatches based on mode. Legacy `LAUNCHAGENT_ENABLED=true` treated as `batch` for backward compatibility.
+- **LaunchAgent modes**: `LAUNCHAGENT_MODE=none` / `home` (default); plist invokes `claude-mux --autolaunch` which dispatches based on mode. Legacy `LAUNCHAGENT_ENABLED=true` treated as `home` (previously `batch`, which has been removed).
 
 ## Dependencies
 
@@ -152,9 +152,9 @@ cp ~/Claude/development/claude-mux/claude-mux ~/bin/
 - `ALLOW_CROSS_SESSION_CONTROL` - allow sessions to send commands to each other (default: `false`)
 - `TEMPLATES_DIR` - CLAUDE.md template directory (default: `~/.claude-mux/templates`)
 - `DEFAULT_TEMPLATE` - default template for new projects (default: `default.md`)
-- `LAUNCHAGENT_MODE` - LaunchAgent behavior at login: `none` (default), `home`, or `batch`
+- `LAUNCHAGENT_MODE` - LaunchAgent behavior at login: `none` or `home` (default)
 - `HOME_SESSION_MODEL` - model for the home session (default: `""`, inherits Claude default; valid: `sonnet`, `haiku`, `opus`)
-- `SLEEP_BETWEEN` - seconds between session launches in batch mode (default: `5`)
+- `SLEEP_BETWEEN` - seconds between session launches when `-a` is used (default: `5`)
 - `TMUX_MOUSE`, `TMUX_HISTORY_LIMIT`, `TMUX_CLIPBOARD`, `TMUX_DEFAULT_TERMINAL`, `TMUX_EXTENDED_KEYS`, `TMUX_ESCAPE_TIME`, `TMUX_TITLE_FORMAT`, `TMUX_MONITOR_ACTIVITY` - tmux session options, all configurable
 
 ## TODO
