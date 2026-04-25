@@ -562,6 +562,7 @@ Rules:
 - Always print command output verbatim in your response text — never run a command silently or rely on tool output being visible
 - The 'home' session is a general-purpose session in the base directory, always available for managing other sessions. It is protected (* in status): --shutdown requires --force, but --restart bypasses protection (it relaunches, not permanently kills).
 - When asked to shut down sessions, run the command directly — protected sessions are skipped automatically, do not ask for confirmation
+- When user says: ready — respond with exactly \"Ready.\" on one line. Nothing else. This is sent automatically when a session starts or restarts.
 - When user says: help — print the following verbatim in your response:
 $(guide)
 - When user says: status — report your session name, current model, current permission mode, context usage estimate, then run claude-mux -l and include the results
@@ -738,15 +739,15 @@ shutdown_single_session() {
     if claude_running_in_session "$session"; then
         log "Sending /exit to session '$session'"
         [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" send-keys -t "$session" "/exit" Enter
-        # Poll until Claude exits (max 30s)
+        # Poll until Claude exits (max 10s, check every 0.5s)
         if [[ "$DRY_RUN" != "true" ]]; then
             _wait=0
-            while [[ $_wait -lt 30 ]]; do
+            while [[ $_wait -lt 20 ]]; do
                 "$TMUX_BIN" has-session -t "$session" 2>/dev/null && claude_running_in_session "$session" || break
-                sleep 1
+                sleep 0.5
                 (( _wait++ ))
             done
-            [[ $_wait -ge 30 ]] && log "WARN: Claude in '$session' did not exit within 30s"
+            [[ $_wait -ge 20 ]] && log "WARN: Claude in '$session' did not exit within 10s"
         fi
     fi
     if "$TMUX_BIN" has-session -t "$session" 2>/dev/null; then
@@ -809,7 +810,7 @@ shutdown_claude_sessions() {
         log "Sent /exit to $exit_count session(s), waiting for Claude to exit..."
         if [[ "$DRY_RUN" != "true" ]]; then
             _wait=0
-            while [[ $_wait -lt 30 ]]; do
+            while [[ $_wait -lt 20 ]]; do
                 _still_running=false
                 for _s in "${managed_list[@]}"; do
                     if "$TMUX_BIN" has-session -t "$_s" 2>/dev/null && claude_running_in_session "$_s"; then
@@ -818,10 +819,10 @@ shutdown_claude_sessions() {
                     fi
                 done
                 [[ "$_still_running" != "true" ]] && break
-                sleep 1
+                sleep 0.5
                 (( _wait++ ))
             done
-            [[ $_wait -ge 30 ]] && log "WARN: Some Claude sessions did not exit within 30s"
+            [[ $_wait -ge 20 ]] && log "WARN: Some Claude sessions did not exit within 10s"
         fi
     fi
 
@@ -1257,14 +1258,36 @@ LAUNCH_EOF
         return
     fi
 
-    # Auto-accept the workspace trust prompt if it appears.
-    # All directories managed by this script are the user's own projects.
-    # Option 1 is pre-selected (❯); just send Enter to confirm.
+    # Wait for Claude to be ready (trust prompt or input prompt), then send "ready".
+    # Polls every 0.5s up to 10s instead of fixed sleeps. Auto-accepts the trust
+    # prompt if it appears (all managed directories are the user's own projects).
     log "Waiting for Claude to start in '$session_name'..."
-    sleep 5
-    if "$TMUX_BIN" capture-pane -t "$session_name" -p 2>/dev/null | grep -q "Yes, I trust this folder"; then
-        log "Auto-accepting trust prompt for '$session_name'"
-        "$TMUX_BIN" send-keys -t "$session_name" "" Enter
+    local _poll=0
+    local _ready=false
+    while [[ $_poll -lt 20 ]]; do
+        sleep 0.5
+        (( _poll++ ))
+        local _pane
+        _pane=$("$TMUX_BIN" capture-pane -t "$session_name" -p 2>/dev/null) || continue
+        if echo "$_pane" | grep -q "Yes, I trust this folder"; then
+            log "Auto-accepting trust prompt for '$session_name'"
+            "$TMUX_BIN" send-keys -t "$session_name" "" Enter
+            # Wait a bit more for Claude to finish loading after trust accept
+            sleep 2
+            _ready=true
+            break
+        fi
+        # Check if Claude is at the input prompt (❯ or >)
+        if echo "$_pane" | grep -qE '^❯|^> '; then
+            _ready=true
+            break
+        fi
+    done
+    if [[ "$_ready" == "true" ]]; then
+        "$TMUX_BIN" send-keys -t "$session_name" "ready" Enter 2>/dev/null
+    else
+        log "WARN: Claude prompt not detected in '$session_name' after 10s, sending ready anyway"
+        "$TMUX_BIN" send-keys -t "$session_name" "ready" Enter 2>/dev/null
     fi
 
     # Home session is always protected
@@ -1519,6 +1542,25 @@ LAUNCH_EOF
         "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" @claude-mux-protected 1 2>/dev/null
         log "Session '$LAUNCH_SESSION_NAME' is protected"
     fi
+
+    # Background: poll for Claude to be ready, then send "ready" message.
+    # Uses same polling approach as create_claude_session but backgrounded
+    # so it doesn't block attach.
+    (
+        _poll=0
+        while [[ $_poll -lt 20 ]]; do
+            sleep 0.5
+            (( _poll++ ))
+            _pane=$("$TMUX_BIN" capture-pane -t "$LAUNCH_SESSION_NAME" -p 2>/dev/null) || continue
+            if echo "$_pane" | grep -q "Yes, I trust this folder"; then
+                "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" "" Enter 2>/dev/null
+                sleep 2
+                break
+            fi
+            echo "$_pane" | grep -qE '^❯|^> ' && break
+        done
+        "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" "ready" Enter 2>/dev/null
+    ) &
 
     if [[ "$NO_ATTACH" == "true" ]]; then
         log "Session '$LAUNCH_SESSION_NAME' created (--no-attach)"
