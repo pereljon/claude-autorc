@@ -135,44 +135,44 @@ tail -f ~/Library/Logs/claude-mux.log
 מכיוון שלכל סשן מוזרקות פקודות claude-mux, אתה יכול לנהל סשנים ישירות מהנחיות שיחה - בטרמינל או דרך אפליקציית הנייד:
 
 ```
-You: "What sessions are running?"
-Claude: runs `claude-mux -l` and displays the results
+אתה: "אילו סשנים רצים?"
+Claude: מריץ `claude-mux -l` ומציג את התוצאות
 
-You: "Show me all projects"
-Claude: runs `claude-mux -L` and displays the results
+אתה: "הצג לי את כל הפרויקטים"
+Claude: מריץ `claude-mux -L` ומציג את התוצאות
 
-You: "Start a session for my api-server work project"
-Claude: runs `claude-mux -d ~/Claude/work/api-server --no-attach`
+אתה: "התחל סשן לפרויקט העבודה api-server שלי"
+Claude: מריץ `claude-mux -d ~/Claude/work/api-server --no-attach`
 
-You: "Create a new personal project called mobile-app"
-Claude: runs `claude-mux -n ~/Claude/personal/mobile-app -p --no-attach`
+אתה: "צור פרויקט אישי חדש בשם mobile-app"
+Claude: מריץ `claude-mux -n ~/Claude/personal/mobile-app -p --no-attach`
 
-You: "What templates do I have?"
-Claude: runs `claude-mux --list-templates` and displays the results
+אתה: "אילו תבניות יש לי?"
+Claude: מריץ `claude-mux --list-templates` ומציג את התוצאות
 
-You: "Create a new work project called api-server using the web template"
-Claude: runs `claude-mux -n ~/Claude/work/api-server -p --template web --no-attach`
+אתה: "צור פרויקט עבודה חדש בשם api-server באמצעות תבנית web"
+Claude: מריץ `claude-mux -n ~/Claude/work/api-server -p --template web --no-attach`
 
-You: "Switch all sessions to Sonnet"
-Claude: runs `claude-mux -s SESSION '/model sonnet'` for each running session
+אתה: "החלף את כל הסשנים ל-Sonnet"
+Claude: מריץ `claude-mux -s SESSION '/model sonnet'` עבור כל סשן רץ
 
-You: "Shut down the data-pipeline session"
-Claude: runs `claude-mux --shutdown data-pipeline`
+אתה: "כבה את הסשן data-pipeline"
+Claude: מריץ `claude-mux --shutdown data-pipeline`
 
-You: "Restart the stuck web-dashboard session"
-Claude: runs `claude-mux --restart web-dashboard`
+אתה: "הפעל מחדש את הסשן התקוע web-dashboard"
+Claude: מריץ `claude-mux --restart web-dashboard`
 
-You: "Switch the api-server session to plan mode"
-Claude: runs `claude-mux --permission-mode plan api-server`
+אתה: "החלף את הסשן api-server למצב plan"
+Claude: מריץ `claude-mux --permission-mode plan api-server`
 
-You: "Yolo the data-pipeline session"
-Claude: runs `claude-mux --permission-mode dangerously-skip-permissions data-pipeline`
+אתה: "Yolo לסשן data-pipeline"
+Claude: מריץ `claude-mux --permission-mode dangerously-skip-permissions data-pipeline`
 
-You: "Launch the data-pipeline session in the background"
-Claude: runs `claude-mux -d ~/Claude/work/data-pipeline --no-attach`
+אתה: "הפעל את הסשן data-pipeline ברקע"
+Claude: מריץ `claude-mux -d ~/Claude/work/data-pipeline --no-attach`
 
-You: "Start all my projects"
-Claude: runs `claude-mux -a` (after confirming - this starts every managed project)
+אתה: "התחל את כל הפרויקטים שלי"
+Claude: מריץ `claude-mux -a` (לאחר אישור - זה מתחיל כל פרויקט מנוהל)
 ```
 
 ## הגדרות

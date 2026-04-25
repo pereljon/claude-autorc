@@ -116,7 +116,36 @@ Get the user's confirmation on the plan before writing code.
 
 After any code change, verify whether these also need updating:
 - `README.md` - usage, feature descriptions, configuration table, examples
-- `translations/README.*.md` - translated READMEs in the `translations/` folder must be kept in sync with `README.md`. When `README.md` changes, either update each translation or flag the relevant translated files for re-translation. Current languages: `es`, `fr`, `de`, `pt-BR`, `ja`, `ko`, `it`, `ru`, `zh-CN`, `he`, `ar`, `hi`
+- `translations/README.*.md` - translated READMEs in the `translations/` folder must be kept in sync with `README.md`. When `README.md` changes, either update each translation or flag the relevant translated files for re-translation. Current languages: `es`, `fr`, `de`, `pt-BR`, `ja`, `ko`, `it`, `ru`, `zh-CN`, `he`, `ar`, `hi`. Follow the translation standards below.
+
+## Translation standards
+
+When creating or updating translated READMEs in `translations/`, follow these rules for consistency.
+
+**Keep in English (load-bearing or universal):**
+- CLI flags and commands (`--guide`, `-l`, `--shutdown`, etc.)
+- Product/proper names (Claude Code, claude-mux, tmux, Remote Control, LaunchAgent, Homebrew, GitHub)
+- Real file paths and config keys (`~/.claude-mux/`, `BASE_DIR`, `DEFAULT_PERMISSION_MODE`, etc.)
+- Environment variable names
+- The "Session System Prompt" code block — literal injected prompt text, not prose
+- Status keywords in tables (`active`, `running`, `stopped`, `idle`) — literal program output strings
+
+**Translate to target language:**
+- Section headers and body prose
+- Conversational example labels (`You:` / `Claude:`) → native equivalents (`Tú:`, `あなた:`, `Du:`, etc.)
+- Conversational dialogue prose
+- Descriptive text in tables (around the status keywords)
+
+**Placeholder translation in code examples — script-aware:**
+- **Latin-script languages** (`es`, `fr`, `de`, `pt-BR`, `it`): translate generic placeholders like `~/path/to/your/project` to local equivalents (`~/ruta/a/tu/proyecto`, `~/chemin/vers/votre/projet`, `~/pfad/zu/deinem/projekt`)
+- **Non-Latin languages** (`ja`, `ko`, `zh-CN`, `he`, `ar`, `hi`, `ru`): keep ASCII placeholders — mixing native script with ASCII paths in code blocks reads awkwardly. Use clearer English names if helpful (e.g., `~/projects/my-app`)
+- **Identifier-style example names** (`my-app`, `api-server`, `data-pipeline`): keep ASCII regardless of target language — they are example identifiers, not prose
+
+**Tone and style:**
+- Match English tone: developer-direct, concise
+- No em dashes, no marketing fluff
+- No LLM-stereotype phrases: "leverage", "delve", "streamline", etc.
+- Use the formal/technical register appropriate to the target language
 - `config.example` - example config template
 - `~/.claude-mux/config` - deployed user config (add new settings)
 - `install.sh` - installer-generated config, new flags

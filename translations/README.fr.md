@@ -15,7 +15,7 @@ Un script shell qui lance Claude Code dans tmux avec Remote Control activé, la 
 ```
 
 ```bash
-claude-mux ~/path/to/your/project
+claude-mux ~/chemin/vers/votre/projet
 ```
 
 Ou faites `cd` dans le répertoire de votre projet et exécutez :
