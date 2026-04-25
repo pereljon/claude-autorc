@@ -42,6 +42,14 @@
 # Default: default.md
 #DEFAULT_TEMPLATE="default.md"
 
+# ── Multi-CLI-coder integration ────────────────────────────────────────────────
+
+# Files created as symlinks pointing at CLAUDE.md so other AI CLI coders
+# (Codex CLI reads AGENTS.md, Gemini CLI reads GEMINI.md, etc.) pick up
+# the same project instructions. Set to empty string "" to disable.
+# Default: "AGENTS.md GEMINI.md"
+#MULTI_CODER_FILES="AGENTS.md GEMINI.md"
+
 # ── LaunchAgent ───────────────────────────────────────────────────────────────
 
 # LaunchAgent mode - what happens at login:

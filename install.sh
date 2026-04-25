@@ -151,6 +151,10 @@ if [[ "$INTERACTIVE" == "true" && -t 0 ]]; then
     echo "directory. It stays running so Remote Control is always available from"
     echo "the Claude mobile app, and can manage all your other sessions."
     echo ""
+    echo "Note: enabling this means a Claude session will start automatically"
+    echo "every time you log in. You can disable later by editing"
+    echo "~/.claude-mux/config and setting LAUNCHAGENT_MODE=none."
+    echo ""
     printf "Start a home session at login? [Y/n]: "
     read -r _input
     case "${_input:-y}" in
@@ -360,3 +364,10 @@ if [[ -n "$PATH_UPDATED" ]]; then
 else
     echo "Run 'claude-mux --help' to get started."
 fi
+
+echo ""
+echo "Note: when claude-mux launches a session in a project, it adds itself to"
+echo "that project's .claude/settings.local.json so Claude can run claude-mux"
+echo "commands without prompting for permission each time. This is per-project"
+echo "and applies only to projects you launch with claude-mux."
+echo ""

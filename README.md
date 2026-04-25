@@ -6,6 +6,17 @@ Persistent Claude Code sessions for all your projects - accessible from anywhere
 
 A shell script that launches Claude Code inside tmux with Remote Control enabled, conversation resume, and session self-management - list sessions, send slash commands, start new projects, shut down or restart. Run `claude-mux` in any directory to get a persistent session accessible from your phone.
 
+## Why
+
+Working with Claude Code across multiple projects has friction:
+
+- Sessions die when you close the terminal
+- Remote Control sessions can't run slash commands like `/model` or `/compact`
+- You can't easily start a session for a project that isn't already running
+- Switching models, permission modes, or compacting context from your phone isn't possible
+
+claude-mux fixes all of this. It wraps Claude Code in tmux so sessions persist across closed terminals, sets up a system prompt so Claude can manage its own sessions from inside a conversation, and routes slash commands through tmux so they work over Remote Control. You ask Claude — in the terminal or the mobile app — to list, start, stop, restart, or switch modes on any of your projects, and it does it.
+
 ## Quick Start
 
 ```bash
@@ -314,6 +325,10 @@ Sessions must be authenticated (not showing "Not logged in"). After a clean auth
 ### Multi-line input in tmux
 
 The `/terminal-setup` command cannot run inside tmux. claude-mux enables tmux `extended-keys` by default (`TMUX_EXTENDED_KEYS=true`), which supports Shift+Enter in most modern terminals. If Shift+Enter doesn't work, use `\` + Return to enter newlines in your prompt.
+
+### "No response requested." after restart
+
+When a session is restarted via `claude-mux --restart`, Claude resumes with the system prompt injected but no user message. Claude recognizes there's nothing to respond to and prints "No response requested." This is normal - the session is ready and waiting for input.
 
 ### Slash commands over Remote Control
 

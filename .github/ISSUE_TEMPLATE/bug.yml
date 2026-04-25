@@ -1,0 +1,58 @@
+name: Bug report
+description: Something isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. The more detail you give, the easier it is to fix.
+  - type: input
+    id: version
+    attributes:
+      label: claude-mux version
+      description: Output of `claude-mux --version`
+      placeholder: "1.5.0"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      description: System Settings → About, or `sw_vers`
+      placeholder: "14.5 (Sonoma)"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the problem. What did you do? What did you expect? What happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps so someone else can reproduce this
+      placeholder: |
+        1. Run `claude-mux ...`
+        2. Then `...`
+        3. Observe `...`
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Excerpt from `~/Library/Logs/claude-mux.log` or terminal output. Redact paths or names if needed.
+      render: shell
+    validations:
+      required: false
+  - type: textarea
+    id: config
+    attributes:
+      label: Config (optional)
+      description: Relevant lines from `~/.claude-mux/config` if it might be related
+      render: shell
+    validations:
+      required: false

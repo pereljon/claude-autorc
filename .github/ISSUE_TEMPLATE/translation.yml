@@ -1,0 +1,40 @@
+name: Translation issue
+description: Report a translation error or request a new language
+labels: ["translation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve translations. claude-mux is currently translated into Spanish, French, German, Brazilian Portuguese, Japanese, Korean, Italian, Russian, Simplified Chinese, Hebrew, Arabic, and Hindi.
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      options:
+        - Translation error in an existing language
+        - Request to add a new language
+        - Translation standards question
+    validations:
+      required: true
+  - type: input
+    id: language
+    attributes:
+      label: Language
+      description: ISO 639-1 code (e.g., `es`, `fr`, `pl`) or full name
+      placeholder: "es / Spanish"
+    validations:
+      required: true
+  - type: input
+    id: file
+    attributes:
+      label: File path (if reporting an error)
+      placeholder: "translations/README.es.md"
+    validations:
+      required: false
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: For errors, quote the problematic text and suggest a correction. For new language requests, share why this language is useful and offer help if you can contribute.
+    validations:
+      required: true

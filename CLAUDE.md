@@ -160,6 +160,18 @@ Before committing, also check whether the version number needs a bump (`VERSION=
 
 Do not commit until all affected files are updated.
 
+## Deprecation policy
+
+When changing or removing existing behavior, follow this cycle:
+
+1. **Deprecate first**: print a warning when the old behavior is invoked. Keep it functional. Document under "Deprecated" in `CHANGELOG.md`.
+2. **Wait at least one minor version** (preferably two) before actually removing.
+3. **Removal**: drop the code, document under "Removed" in `CHANGELOG.md`. Keep a brief migration note explaining what to do instead.
+
+Example: `LAUNCHAGENT_MODE=batch` was deprecated in v1.4 and removed in v1.5. The legacy `LAUNCHAGENT_ENABLED=true` still works but maps to `home` (was `batch`). The `-a` flag is currently flagged for review with a comment in the source — when removal is decided, follow this policy.
+
+Don't remove features without warning users first. Don't break someone's working setup without an upgrade path.
+
 ## Development workflow
 
 The script has two locations:

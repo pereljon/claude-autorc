@@ -2,7 +2,7 @@
 # claude-mux — Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.5.0"
+VERSION="1.6.0"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -73,6 +73,12 @@ HOME_SESSION_MODEL="sonnet"
 # LAUNCHAGENT_MODE=batch before batch was removed).
 LAUNCHAGENT_ENABLED=false
 
+# ── Multi-CLI-coder integration ────────────────────────────────────────────────
+# Files to create as symlinks pointing at CLAUDE.md so other AI CLI coders
+# (Codex CLI reads AGENTS.md, Gemini CLI reads GEMINI.md, etc.) pick up the
+# same project instructions. Set to empty string "" to disable entirely.
+MULTI_CODER_FILES="AGENTS.md GEMINI.md"
+
 # ── Flag parsing ───────────────────────────────────────────────────────────────
 
 DRY_RUN=false
@@ -87,6 +93,7 @@ NEW_CREATE_PARENTS=false
 TEMPLATE_NAME=""
 NO_TEMPLATE=false
 NO_GIT=false
+NO_MULTI_CODER=false
 NO_ATTACH=false
 NO_PERMISSION_MODE=false
 FORCE=false
@@ -148,6 +155,7 @@ Options:
   --no-template         With -n, skip applying CLAUDE.md template
   --no-git              With -n, skip git init and .gitignore
   --no-permission-mode  With -n, skip setting permissions.defaultMode
+  --no-multi-coder      With -n, skip creating AGENTS.md/GEMINI.md symlinks
   --no-attach           With -d or -n, launch in background without attaching
   --force               With --shutdown, override protection on home session
   --dry-run             Print actions without executing
@@ -229,6 +237,7 @@ while [[ $# -gt 0 ]]; do
             TEMPLATE_NAME="$2"; shift 2 ;;
         --list-templates) set_command "--list-templates" "list-templates"; shift ;;
         --no-template)       NO_TEMPLATE=true; shift ;;
+        --no-multi-coder)    NO_MULTI_CODER=true; shift ;;
         --no-git)            NO_GIT=true; shift ;;
         --no-attach)         NO_ATTACH=true; shift ;;
         --no-permission-mode) NO_PERMISSION_MODE=true; shift ;;
@@ -264,6 +273,10 @@ if [[ "$NO_GIT" == "true" && "$COMMAND" != "new" ]]; then
 fi
 if [[ "$NO_PERMISSION_MODE" == "true" && "$COMMAND" != "new" ]]; then
     echo "ERROR: --no-permission-mode can only be used with -n" >&2
+    exit 1
+fi
+if [[ "$NO_MULTI_CODER" == "true" && "$COMMAND" != "new" ]]; then
+    echo "ERROR: --no-multi-coder can only be used with -n" >&2
     exit 1
 fi
 if [[ "$NO_ATTACH" == "true" && "$COMMAND" != "launch" && "$COMMAND" != "new" ]]; then
@@ -350,6 +363,14 @@ if [[ ! -f "$CLAUDE_MUX_CONFIG" ]]; then
 # Default template applied to new projects (-n). Set to "" to disable.
 # Default: default.md
 #DEFAULT_TEMPLATE="default.md"
+
+# ── Multi-CLI-coder integration ────────────────────────────────────────────────
+
+# Files created as symlinks pointing at CLAUDE.md so other AI CLI coders
+# (Codex CLI reads AGENTS.md, Gemini CLI reads GEMINI.md, etc.) pick up
+# the same project instructions. Set to empty string "" to disable.
+# Default: "AGENTS.md GEMINI.md"
+#MULTI_CODER_FILES="AGENTS.md GEMINI.md"
 
 # ── Batch mode ────────────────────────────────────────────────────────────────
 
@@ -1082,6 +1103,57 @@ with open(sys.argv[2], 'w') as f: json.dump(d, f, indent=2)
     fi
 }
 
+# Create symlinks (e.g. AGENTS.md, GEMINI.md) pointing at CLAUDE.md so other
+# AI CLI coders pick up the same project instructions. Idempotent: skips
+# targets that already exist (real file or correct symlink). Silent if
+# CLAUDE.md is missing or MULTI_CODER_FILES is empty.
+setup_multi_coder_files() {
+    local dir="$1"
+
+    # Skip if --no-multi-coder was passed for this -n invocation
+    [[ "$NO_MULTI_CODER" == "true" ]] && return
+
+    # Skip if user disabled in config
+    [[ -z "$MULTI_CODER_FILES" ]] && return
+
+    # Skip if there's no canonical CLAUDE.md to link to
+    [[ ! -e "$dir/CLAUDE.md" ]] && return
+
+    local target
+    for target in $MULTI_CODER_FILES; do
+        local target_path="$dir/$target"
+
+        # Already a symlink pointing at CLAUDE.md — idempotent skip
+        if [[ -L "$target_path" ]]; then
+            local current_target
+            current_target=$(readlink "$target_path")
+            if [[ "$current_target" == "CLAUDE.md" ]]; then
+                continue
+            fi
+            # Wrong target or broken symlink — leave alone, don't surprise user
+            log "Skipping $target in $dir: existing symlink points elsewhere ($current_target)"
+            continue
+        fi
+
+        # Real file already exists — don't overwrite
+        if [[ -e "$target_path" ]]; then
+            continue
+        fi
+
+        # Create the symlink
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log "Would create symlink $target → CLAUDE.md in $dir"
+            continue
+        fi
+
+        if (cd "$dir" && ln -s CLAUDE.md "$target") 2>/dev/null; then
+            log "Created $target → CLAUDE.md symlink in $dir"
+        else
+            log "WARN: Failed to create $target symlink in $dir"
+        fi
+    done
+}
+
 detect_github_ssh_accounts() {
     # Parses ~/.ssh/config for GitHub SSH host aliases (Host github.com-*)
     # and sets GITHUB_SSH_INFO to a prompt-ready string, or empty if none found.
@@ -1115,6 +1187,12 @@ create_claude_session() {
     local session_name="$1"
     local working_dir="$2"
     local mode_override="${3:-}"   # optional: permission mode override (or "dangerously-skip-permissions")
+
+    # Create multi-coder symlinks (AGENTS.md, GEMINI.md → CLAUDE.md) so other
+    # AI CLI tools see the same project instructions. Idempotent and silent
+    # when not applicable. Runs before session creation so a restart picks up
+    # missing symlinks too.
+    setup_multi_coder_files "$working_dir"
 
     if "$TMUX_BIN" has-session -t "$session_name" 2>/dev/null; then
         # Session exists — check if claude is still running inside it.
