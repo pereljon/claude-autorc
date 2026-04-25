@@ -54,6 +54,7 @@ claude-mux is a single bash script with no dependencies beyond tmux and Claude C
 9. **Auto-approved permissions** - claude-mux adds itself to each project's `.claude/settings.local.json` allow list so Claude can run claude-mux commands without prompting for permission
 10. **Stray process migration** - if Claude is already running in the target directory outside tmux, terminates it and relaunches inside a managed tmux session (conversation resumes via `claude -c`)
 11. **Tmux quality-of-life** - sessions are configured with mouse support, 50k scrollback buffer, clipboard integration, 256-color, reduced escape delay, extended keys (Shift+Enter), activity monitoring, and terminal tab titles - all configurable in `~/.claude-mux/config`
+12. **Multi-CLI-coder support** - automatically creates `AGENTS.md` and `GEMINI.md` as symlinks to `CLAUDE.md` so other AI CLI tools (Codex CLI, Gemini CLI) share the same project instructions. Runs on every session create and restart, so existing projects get symlinks automatically. Configurable via `MULTI_CODER_FILES`; disable with `--no-multi-coder` or set to empty string
 
 > **Note:** This is different from `claude --worktree --tmux`, which creates a tmux session for an isolated git worktree. claude-mux manages persistent sessions for your actual project directories, with Remote Control and system prompt injection.
 
@@ -101,6 +102,7 @@ claude-mux -a                    # start all managed sessions under BASE_DIR
 claude-mux -n ~/projects/app     # create a new Claude project and attach
 claude-mux -n ~/new/path/app -p  # same, creating the directory and parents
 claude-mux -n ~/app --template web  # new project with a specific CLAUDE.md template
+claude-mux -n ~/app --no-multi-coder  # new project without AGENTS.md/GEMINI.md symlinks
 claude-mux --list-templates      # show available CLAUDE.md templates
 claude-mux -t my-app             # attach to an existing tmux session
 claude-mux -s my-app '/model sonnet' # send a slash command to a session
@@ -198,6 +200,7 @@ On first run, `~/.claude-mux/config` is created automatically with all settings 
 | `DEFAULT_TEMPLATE` | `default.md` | Default template applied to new projects (`-n`). Set to `""` to disable. |
 | `SLEEP_BETWEEN` | `5` | Seconds between session launches when `-a` is used. Increase if RC registration fails. |
 | `HOME_SESSION_MODEL` | `""` | Model for the home session. Valid: `sonnet`, `haiku`, `opus`. Empty inherits Claude's default. |
+| `MULTI_CODER_FILES` | `"AGENTS.md GEMINI.md"` | Space-separated list of files to create as symlinks to `CLAUDE.md` for other AI CLI tools. Set to `""` to disable. |
 | `LAUNCHAGENT_MODE` | `home` | LaunchAgent behavior at login: `none` (do nothing) or `home` (launch protected home session). Legacy `LAUNCHAGENT_ENABLED=true` is treated as `home`. |
 
 **Tmux session options** (all configurable, all enabled by default):
