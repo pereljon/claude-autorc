@@ -135,6 +135,7 @@ When creating or updating translated READMEs in `translations/`, follow these ru
 - Conversational example labels (`You:` / `Claude:`) → native equivalents (`Tú:`, `あなた:`, `Du:`, etc.)
 - Conversational dialogue prose
 - Descriptive text in tables (around the status keywords)
+- Inline shell comments in code blocks (the `# ...` text after a command) — these are explanatory prose, not code. Example: `claude-mux -l   # list active sessions` → `claude-mux -l   # liste les sessions actives` (French)
 
 **Placeholder translation in code examples — script-aware:**
 - **Latin-script languages** (`es`, `fr`, `de`, `pt-BR`, `it`): translate generic placeholders like `~/path/to/your/project` to local equivalents (`~/ruta/a/tu/proyecto`, `~/chemin/vers/votre/projet`, `~/pfad/zu/deinem/projekt`)

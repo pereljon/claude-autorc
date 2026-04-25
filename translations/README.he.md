@@ -73,11 +73,11 @@ claude-mux הוא סקריפט bash בודד ללא תלויות מעבר ל-tmu
 אפשרויות:
 
 ```bash
-./install.sh --non-interactive                     # skip prompts, use defaults
-./install.sh --base-dir ~/work/claude              # use a different base directory
-./install.sh --launchagent-mode none               # disable LaunchAgent behavior
-./install.sh --home-model haiku                    # use Haiku for home session
-./install.sh --no-launchagent                      # skip LaunchAgent installation entirely
+./install.sh --non-interactive                     # דלג על הנחיות, השתמש בברירות מחדל
+./install.sh --base-dir ~/work/claude              # השתמש בספריית בסיס אחרת
+./install.sh --launchagent-mode none               # השבת התנהגות LaunchAgent
+./install.sh --home-model haiku                    # השתמש ב-Haiku לסשן הבית
+./install.sh --no-launchagent                      # דלג על התקנת LaunchAgent לחלוטין
 ```
 
 ה-LaunchAgent מריץ את `claude-mux --autolaunch` בכניסה למערכת עם השהיית הפעלה של 45 שניות כדי לאפשר לשירותי המערכת להתאתחל.
@@ -85,33 +85,33 @@ claude-mux הוא סקריפט bash בודד ללא תלויות מעבר ל-tmu
 ## שימוש
 
 ```bash
-claude-mux                       # launch Claude in current directory and attach
-claude-mux ~/projects/my-app     # launch Claude in a directory and attach
-claude-mux -d ~/projects/my-app  # same as above (explicit form)
-claude-mux -a                    # start all managed sessions under BASE_DIR
-claude-mux -n ~/projects/app     # create a new Claude project and attach
-claude-mux -n ~/new/path/app -p  # same, creating the directory and parents
-claude-mux -n ~/app --template web  # new project with a specific CLAUDE.md template
-claude-mux --list-templates      # show available CLAUDE.md templates
-claude-mux -t my-app             # attach to an existing tmux session
-claude-mux -s my-app '/model sonnet' # send a slash command to a session
-claude-mux -l                    # list sessions by status (active, running, stopped)
-claude-mux -L                    # list all projects (active + idle)
-claude-mux --shutdown            # gracefully exit all managed Claude sessions
-claude-mux --shutdown my-app     # shut down a specific session
-claude-mux --shutdown a b c      # shut down multiple sessions
-claude-mux --shutdown home --force  # shut down protected home session
-claude-mux --restart             # restart sessions that were running
-claude-mux --restart my-app      # restart a specific session
-claude-mux --restart a b c       # restart multiple sessions
-claude-mux --permission-mode plan my-app    # restart session with plan mode
-claude-mux --permission-mode dangerously-skip-permissions my-app  # yolo mode
-claude-mux --dry-run             # preview actions without executing
-claude-mux --version             # print version
-claude-mux --help                # show all options
-claude-mux --guide               # show conversational commands for use within sessions
+claude-mux                       # הפעל את Claude בספרייה הנוכחית והתחבר
+claude-mux ~/projects/my-app     # הפעל את Claude בספרייה והתחבר
+claude-mux -d ~/projects/my-app  # זהה לעיל (צורה מפורשת)
+claude-mux -a                    # הפעל את כל הסשנים המנוהלים תחת BASE_DIR
+claude-mux -n ~/projects/app     # צור פרויקט Claude חדש והתחבר
+claude-mux -n ~/new/path/app -p  # זהה, יוצר את הספרייה ואת ספריות האב
+claude-mux -n ~/app --template web  # פרויקט חדש עם תבנית CLAUDE.md ספציפית
+claude-mux --list-templates      # הצג תבניות CLAUDE.md זמינות
+claude-mux -t my-app             # התחבר לסשן tmux קיים
+claude-mux -s my-app '/model sonnet' # שלח פקודת slash לסשן
+claude-mux -l                    # הצג סשנים לפי סטטוס (active, running, stopped)
+claude-mux -L                    # הצג את כל הפרויקטים (active + idle)
+claude-mux --shutdown            # סיים בעדינות את כל סשני Claude המנוהלים
+claude-mux --shutdown my-app     # כבה סשן ספציפי
+claude-mux --shutdown a b c      # כבה מספר סשנים
+claude-mux --shutdown home --force  # כבה את סשן הבית המוגן
+claude-mux --restart             # הפעל מחדש סשנים שרצו
+claude-mux --restart my-app      # הפעל מחדש סשן ספציפי
+claude-mux --restart a b c       # הפעל מחדש מספר סשנים
+claude-mux --permission-mode plan my-app    # הפעל מחדש את הסשן במצב plan
+claude-mux --permission-mode dangerously-skip-permissions my-app  # מצב yolo
+claude-mux --dry-run             # הצג תצוגה מקדימה של פעולות ללא ביצוע
+claude-mux --version             # הדפס גרסה
+claude-mux --help                # הצג את כל האפשרויות
+claude-mux --guide               # הצג פקודות שיחה לשימוש בתוך סשנים
 
-# Watch the log
+# צפה ב-log
 tail -f ~/Library/Logs/claude-mux.log
 ```
 
@@ -211,21 +211,21 @@ Claude: מריץ `claude-mux -a` (לאחר אישור - זה מתחיל כל פ�
 ```
 ~/Claude/
 ├── work/
-│   ├── project-a/          # ✓ has .claude/ - managed
+│   ├── project-a/          # ✓ יש .claude/ - מנוהל
 │   │   └── .claude/
-│   ├── project-b/          # ✓ has .claude/ - managed
+│   ├── project-b/          # ✓ יש .claude/ - מנוהל
 │   │   └── .claude/
-│   └── -archived/          # ✗ excluded (starts with -)
+│   └── -archived/          # ✗ מוחרג (מתחיל ב-)
 │       └── .claude/
 ├── personal/
-│   ├── project-c/          # ✓ has .claude/ - managed
+│   ├── project-c/          # ✓ יש .claude/ - מנוהל
 │   │   └── .claude/
-│   ├── .hidden/            # ✗ excluded (hidden directory)
+│   ├── .hidden/            # ✗ מוחרג (ספרייה מוסתרת)
 │   │   └── .claude/
-│   └── project-d/          # ✗ no .claude/ - not a Claude project
-├── deep/nested/project-e/  # ✓ has .claude/ - found at any depth
+│   └── project-d/          # ✗ אין .claude/ - לא פרויקט Claude
+├── deep/nested/project-e/  # ✓ יש .claude/ - נמצא בכל עומק
 │   └── .claude/
-└── ignored-project/        # ✗ excluded (.ignore-claudemux)
+└── ignored-project/        # ✗ מוחרג (.ignore-claudemux)
     ├── .claude/
     └── .ignore-claudemux
 ```
@@ -299,12 +299,12 @@ GitHub SSH accounts configured in ~/.ssh/config: <accounts>.
 זה קורה בהפעלה ראשונה אם ה-keychain של macOS נעול (נפוץ כשהסקריפט רץ לפני שה-keychain פתוח לאחר הכניסה למערכת). תיקון:
 
 ```bash
-# Unlock the keychain in a regular terminal
+# פתח את ה-keychain בטרמינל רגיל
 security unlock-keychain
 
-# Then complete auth in any one running session
+# לאחר מכן השלם אימות בסשן רץ אחד כלשהו
 claude-mux -t <any-session>
-# Run /login and complete the browser flow
+# הרץ /login והשלם את תהליך הדפדפן
 ```
 
 לאחר השלמת אימות פעם אחת, הרוג והפעל מחדש את כל הסשנים - הם יקלטו את האישור המאוחסן אוטומטית.
