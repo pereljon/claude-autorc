@@ -8,12 +8,14 @@ Des sessions Claude Code persistantes pour tous vos projets, accessibles depuis 
 
 ## Pourquoi
 
-Travailler avec Claude Code sur plusieurs projets génère des frictions :
+Remote Control promet Claude Code depuis n'importe où — mais sans gestion de sessions, c'est une interface de second rang même depuis Claude Desktop :
 
-- Les sessions meurent quand vous fermez le terminal
-- Les sessions Remote Control ne peuvent pas exécuter les slash commands comme `/model` ou `/compact`
-- Il n'est pas possible de démarrer facilement une session pour un projet qui ne tourne pas déjà
-- Changer de modèle, de mode de permission ou compacter le contexte depuis son téléphone est impossible
+- Les sessions meurent quand vous fermez le terminal, et le contexte de la conversation ne reprend pas automatiquement
+- Il n'y a pas de base permanente — rien ne tourne quand vous prenez votre téléphone sauf si vous avez laissé quelque chose ouvert
+- Si une session ne tourne pas, Remote Control est inutile — vous ne pouvez ni atteindre un projet ni en démarrer un
+- Même dans une session RC active, les slash commands ne fonctionnent pas — pas de changement de modèle, de compactage, ni de changement de mode de permission
+- Démarrer un nouveau projet nécessite de créer manuellement un répertoire, initialiser git, écrire un CLAUDE.md, définir un mode de permission et choisir un modèle — rien de tout cela n'est possible depuis RC
+- Gérer plusieurs projets implique plusieurs lancements manuels de terminal sans vue d'ensemble de ce qui tourne ni de son état
 
 claude-mux résout tout cela. Il encapsule Claude Code dans tmux pour que les sessions persistent, injecte un system prompt afin que Claude puisse gérer ses propres sessions, et achemine les slash commands via tmux pour qu'elles fonctionnent en Remote Control. Une fois une session lancée, vous gérez tout en parlant à Claude -- depuis le terminal ou l'application mobile.
 

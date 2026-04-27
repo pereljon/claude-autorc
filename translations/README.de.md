@@ -8,12 +8,14 @@ Persistente Claude Code-Sitzungen für alle deine Projekte, von überall über d
 
 ## Warum
 
-Das Arbeiten mit Claude Code über mehrere Projekte hinweg bringt Reibungspunkte mit sich:
+Remote Control verspricht Claude Code von überall — aber ohne Session-Management ist es eine zweitklassige Schnittstelle, selbst von Claude Desktop aus:
 
-- Sitzungen sterben, wenn du das Terminal schließt
-- Remote Control-Sitzungen können keine Slash-Befehle wie `/model` oder `/compact` ausführen
-- Eine Sitzung für ein Projekt zu starten, das noch nicht läuft, ist umständlich
-- Modelle, Berechtigungsmodi oder den Kontext per Telefon zu wechseln ist nicht möglich
+- Sitzungen sterben, wenn du das Terminal schließt, und der Gesprächskontext wird nicht automatisch wiederhergestellt
+- Es gibt keine Heimatbasis — nichts läuft, wenn du dein Telefon nimmst, es sei denn, du hast etwas offen gelassen
+- Wenn keine Sitzung läuft, ist Remote Control nutzlos — du kannst weder ein Projekt erreichen noch eines starten
+- Selbst in einer laufenden RC-Sitzung funktionieren Slash-Befehle nicht — kein Modellwechsel, kein Komprimieren, keine Berechtigungsmodusänderungen
+- Ein neues Projekt zu starten erfordert manuelles Erstellen eines Verzeichnisses, git-Initialisierung, Schreiben einer CLAUDE.md, Setzen eines Berechtigungsmodus und Auswahl eines Modells — nichts davon ist über RC möglich
+- Mehrere Projekte zu verwalten bedeutet mehrere manuelle Terminal-Starts ohne Überblick darüber, was läuft oder in welchem Zustand es sich befindet
 
 claude-mux behebt all das. Es kapselt Claude Code in tmux, sodass Sitzungen persistent sind, injiziert einen System-Prompt, damit Claude seine eigenen Sitzungen verwalten kann, und leitet Slash-Befehle über tmux weiter, damit sie über Remote Control funktionieren. Sobald eine Sitzung läuft, verwaltest du alles per Gespräch mit Claude -- im Terminal oder in der Mobile-App.
 

@@ -6,12 +6,14 @@
 
 ## क्यों
 
-कई प्रोजेक्ट्स में Claude Code के साथ काम करना अक्सर मुश्किल होता है:
+Remote Control का वादा है कि Claude Code को कहीं से भी इस्तेमाल किया जा सके — लेकिन session management के बिना, यह Claude Desktop से भी एक द्वितीय श्रेणी का इंटरफ़ेस है:
 
-- टर्मिनल बंद करने पर सेशन खत्म हो जाते हैं
-- Remote Control सेशन में `/model` या `/compact` जैसे slash commands नहीं चलते
-- जो प्रोजेक्ट पहले से नहीं चल रहा उसके लिए सेशन शुरू करना आसान नहीं है
-- फोन से मॉडल, permission mode, या context compact करना संभव नहीं है
+- टर्मिनल बंद करने पर सेशन खत्म हो जाते हैं और conversation context अपने आप resume नहीं होता
+- कोई permanent home base नहीं है — जब आप फोन उठाते हैं तो कुछ भी नहीं चल रहा होता जब तक कि आपने कुछ खुला न छोड़ा हो
+- अगर कोई सेशन नहीं चल रहा तो Remote Control बेकार है — न किसी प्रोजेक्ट तक पहुंच सकते हैं, न नया शुरू कर सकते हैं
+- चल रहे RC सेशन में भी slash commands काम नहीं करते — न model switching, न compaction, न permission mode बदलना
+- नया प्रोजेक्ट शुरू करने के लिए manually directory बनानी होती है, git init करना होता है, CLAUDE.md लिखना होता है, permission mode सेट करना होता है और model चुनना होता है — इनमें से कुछ भी RC से नहीं हो सकता
+- कई प्रोजेक्ट्स मैनेज करने का मतलब है कई manual terminal launches, और कोई overview नहीं कि क्या चल रहा है या किस state में है
 
 claude-mux यह सब ठीक करता है। यह Claude Code को tmux में लपेटता है ताकि सेशन बने रहें, एक system prompt inject करता है ताकि Claude अपने सेशन खुद मैनेज कर सके, और slash commands को tmux के माध्यम से रूट करता है ताकि वे Remote Control पर भी काम करें। एक बार सेशन चलने के बाद, आप Claude से बात करके सब कुछ मैनेज करते हैं - टर्मिनल में या मोबाइल ऐप से।
 

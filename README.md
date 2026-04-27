@@ -6,12 +6,14 @@ Persistent Claude Code sessions for all your projects - accessible from anywhere
 
 ## Why
 
-Working with Claude Code across multiple projects has friction:
+Remote Control promises Claude Code from anywhere — but without session management, it's a second-class interface even from Claude Desktop:
 
-- Sessions die when you close the terminal
-- Remote Control sessions can't run slash commands like `/model` or `/compact`
-- You can't easily start a session for a project that isn't already running
-- Switching models, permission modes, or compacting context from your phone isn't possible
+- Sessions die when you close the terminal, and conversation context doesn't resume automatically
+- There's no home base — nothing is running when you pick up your phone unless you left something open
+- If a session isn't running, Remote Control is useless — you can't reach a project or start one
+- Even in a running RC session, slash commands don't work — no model switching, compacting, or permission mode changes
+- Starting a new project requires manually creating a directory, initializing git, writing a CLAUDE.md, setting a permission mode, and picking a model — none of which you can do from RC
+- Managing multiple projects means multiple manual terminal launches with no overview of what's running or what state anything is in
 
 claude-mux fixes all of this. It wraps Claude Code in tmux so sessions persist, injects a system prompt so Claude can manage its own sessions, and routes slash commands through tmux so they work over Remote Control. Once a session is running, you manage everything by talking to Claude — in the terminal or the mobile app.
 
