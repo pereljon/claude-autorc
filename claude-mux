@@ -2,7 +2,7 @@
 # claude-mux — Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.7.2"
+VERSION="1.7.3"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -728,8 +728,8 @@ This is the home session: the always-on tmux session in your base directory. It 
 Rules:
 - You CAN send slash commands (/model, /compact, /clear, etc.) to this session via the -s command. Never tell the user you cannot change models or run slash commands.
 - Always use --no-attach with -d and -n — attach is interactive only
-- --shutdown and --restart never attach — safe to run from inside a session
-- Always print command output verbatim in your response text — never run a command silently or rely on tool output being visible
+- --shutdown and --restart never attach — safe to run from inside a session; do NOT add --no-attach to these commands
+- Always print command output verbatim in your response text — never run a command silently or rely on tool output being visible; if a command fails, report the error
 - When command output contains <assistant-must-display> tags, you MUST include the COMPLETE content between those tags verbatim in your response. Never summarize, truncate, or omit any lines. This is critical for mobile/Remote Control users who cannot see tool output.
 - The 'home' session is a general-purpose session in the base directory, always available for managing other sessions. It is protected (* in status): --shutdown requires --force, but --restart bypasses protection (it relaunches, not permanently kills).
 - When asked to shut down sessions, run the command directly — protected sessions are skipped automatically, do not ask for confirmation

@@ -4,6 +4,12 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.7.3] — 2026-04-27
+
+### Fixed
+- **`--restart` with `--no-attach`**: injection prompt now explicitly states `--no-attach` must not be added to `--restart` or `--shutdown`. Claude was over-applying the `-d`/`-n` rule, causing `--restart` to fail with exit code 1.
+- **Silent command failure**: injection prompt now instructs Claude to report errors when a command fails, not just print verbatim output on success.
+
 ## [1.7.2] — 2026-04-27
 
 ### Fixed
@@ -168,6 +174,7 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 - Logging to `~/Library/Logs/claude-autorc.log` (later `claude-mux.log`).
 
 [Unreleased]: https://github.com/pereljon/claude-mux/compare/v1.7.1...HEAD
+[1.7.3]: https://github.com/pereljon/claude-mux/compare/v1.7.2...v1.7.3
 [1.7.2]: https://github.com/pereljon/claude-mux/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/pereljon/claude-mux/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/pereljon/claude-mux/compare/v1.6.2...v1.7.0
