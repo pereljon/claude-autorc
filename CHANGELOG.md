@@ -4,6 +4,16 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- **Update notifications**: cached daily check against GitHub releases API. Displays one-line notification on interactive TTY when a newer version is available. Re-notifies weekly. Configurable via `UPDATE_CHECK=true/false`.
+- **`--update` self-update**: downloads latest release from GitHub (or delegates to `brew upgrade` if installed via Homebrew). Offers to restart running sessions after update.
+- **Dynamic path detection**: `tmux` and `claude` resolved via `command -v` at startup instead of hardcoded `/opt/homebrew/bin` paths. Supports Intel Mac, custom installs, and future Linux. Override via `TMUX_BIN`/`CLAUDE_BIN` in config.
+- **Installer dependency warnings**: warns (non-blocking) if tmux or claude are not found at install time.
+- **Installer upgrade mode**: detects existing `~/.claude-mux/config` and skips interactive prompts on reinstall, preserving user settings.
+
+### Changed
+- CLI Reference section moved to end of README (before Troubleshooting), reinforcing that conversational usage is primary.
+
 ## [1.6.2] — 2026-04-26
 
 ### Added

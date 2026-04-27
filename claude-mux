@@ -2,7 +2,7 @@
 # claude-mux — Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.6.2"
+VERSION="1.7.0"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -72,6 +72,10 @@ HOME_SESSION_MODEL="sonnet"
 # Legacy: LAUNCHAGENT_ENABLED=true is treated as LAUNCHAGENT_MODE=home (was
 # LAUNCHAGENT_MODE=batch before batch was removed).
 LAUNCHAGENT_ENABLED=false
+
+# ── Update check ──────────────────────────────────────────────────────────────
+# Check GitHub releases for newer versions. Set to false to disable.
+UPDATE_CHECK=true
 
 # ── Multi-CLI-coder integration ────────────────────────────────────────────────
 # Files to create as symlinks pointing at CLAUDE.md so other AI CLI coders
@@ -150,6 +154,7 @@ Commands:
   --restart [SESSION...]   Restart specific session(s), or all that were running
   --permission-mode MODE [SESSION...]  Restart session(s) with the given permission mode
   --autolaunch             Invoked by LaunchAgent; dispatches based on LAUNCHAGENT_MODE
+  --update                 Update claude-mux to the latest version
 
 Options:
   --no-template         With -n, skip applying CLAUDE.md template
@@ -221,6 +226,7 @@ while [[ $# -gt 0 ]]; do
         # and running every project simultaneously is costly in RAM/CPU/tokens.
         # Retained for now as a manual escape hatch; revisit after usage review.
         -a|--all)         set_command "-a" "start"; shift ;;
+        --update)         set_command "--update" "update"; shift ;;
         --autolaunch)     set_command "--autolaunch" "autolaunch"; shift ;;
         --force)          FORCE=true; shift ;;
         -d|--directory)
@@ -493,6 +499,135 @@ log() {
         echo "$msg" >> "$LOG_FILE"
         # Mirror to stdout when running interactively in a terminal
         [[ -t 1 ]] && echo "$msg"
+    fi
+}
+
+# Returns true (0) if $1 > $2 using semantic versioning
+version_gt() {
+    local IFS=.
+    local -a v1=($1) v2=($2)
+    local i
+    for ((i=0; i<${#v1[@]} || i<${#v2[@]}; i++)); do
+        local a="${v1[i]:-0}" b="${v2[i]:-0}"
+        if (( a > b )); then return 0; fi
+        if (( a < b )); then return 1; fi
+    done
+    return 1  # equal
+}
+
+# Check GitHub releases for a newer version (cached, non-blocking)
+check_for_update() {
+    [[ "${UPDATE_CHECK:-true}" != "true" ]] && return
+    [[ ! -t 1 ]] && return  # only on interactive TTY
+
+    local config_dir="$HOME/.claude-mux"
+    local cache="$config_dir/.update-check"
+    local now
+    now=$(date +%s)
+    local last_check=0 latest="" last_notify=0
+
+    if [[ -f "$cache" ]]; then
+        read -r last_check latest last_notify < "$cache" 2>/dev/null || true
+    fi
+
+    # Check API at most once per day (86400 seconds)
+    if (( now - last_check > 86400 )); then
+        local api_response
+        api_response=$(curl -sf --max-time 3 \
+            "https://api.github.com/repos/pereljon/claude-mux/releases/latest" 2>/dev/null) || return
+        latest=$(echo "$api_response" | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/' | head -1)
+        [[ -z "$latest" ]] && return
+        last_check=$now
+        # Reset notify timer if this is a new version
+        if [[ "$latest" != "$(echo "$cache" | awk '{print $2}')" ]]; then
+            last_notify=0
+        fi
+        echo "$last_check $latest $last_notify" > "$cache"
+    fi
+
+    # Nothing to notify
+    [[ -z "$latest" || "$latest" == "$VERSION" ]] && return
+    version_gt "$latest" "$VERSION" || return
+
+    # Throttle notifications to once per 7 days per version
+    if (( last_notify > 0 && now - last_notify < 604800 )); then
+        return
+    fi
+
+    # Display notification
+    echo "claude-mux $latest available (current: $VERSION). See: github.com/pereljon/claude-mux/releases/tag/v$latest" >&2
+    echo "  Update: claude-mux --update" >&2
+
+    # Update notify timestamp
+    echo "$last_check $latest $now" > "$cache"
+}
+
+# Self-update to the latest release
+do_update() {
+    local latest api_response
+    api_response=$(curl -sf --max-time 10 \
+        "https://api.github.com/repos/pereljon/claude-mux/releases/latest" 2>/dev/null) || {
+        echo "Error: could not reach GitHub releases API" >&2
+        exit 1
+    }
+    latest=$(echo "$api_response" | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/' | head -1)
+
+    if [[ -z "$latest" ]]; then
+        echo "Error: could not parse latest version from GitHub" >&2
+        exit 1
+    fi
+
+    if [[ "$latest" == "$VERSION" ]]; then
+        echo "Already at latest version ($VERSION)"
+        exit 0
+    fi
+
+    if ! version_gt "$latest" "$VERSION"; then
+        echo "Current version ($VERSION) is newer than latest release ($latest)"
+        exit 0
+    fi
+
+    # Detect install method
+    if command -v brew &>/dev/null && brew list claude-mux &>/dev/null 2>&1; then
+        echo "Updating via Homebrew..."
+        brew upgrade claude-mux
+    else
+        # Direct download
+        local install_path
+        install_path=$(command -v claude-mux 2>/dev/null) || install_path="$CLAUDE_MUX_BIN"
+        local download_url="https://github.com/pereljon/claude-mux/releases/download/v${latest}/claude-mux"
+
+        local tmp
+        tmp=$(mktemp)
+        if ! curl -sfL --max-time 30 -o "$tmp" "$download_url" 2>/dev/null; then
+            rm -f "$tmp"
+            echo "Error: failed to download v$latest" >&2
+            exit 1
+        fi
+
+        # Sanity check
+        if ! head -1 "$tmp" | grep -q '^#!'; then
+            rm -f "$tmp"
+            echo "Error: downloaded file doesn't look like a script" >&2
+            exit 1
+        fi
+
+        chmod +x "$tmp"
+        mv "$tmp" "$install_path"
+    fi
+
+    echo "claude-mux updated: $VERSION -> $latest"
+
+    # Clear update cache
+    rm -f "$HOME/.claude-mux/.update-check"
+
+    # Offer restart
+    if [[ -t 0 ]]; then
+        echo ""
+        read -rp "Restart running sessions to use the new version? [y/N] " answer
+        if [[ "$answer" =~ ^[Yy] ]]; then
+            exec "$install_path" --restart
+        fi
     fi
 }
 
@@ -1727,7 +1862,11 @@ autolaunch_dispatch() {
     esac
 }
 
+# Check for updates (non-blocking, TTY-only, cached daily)
+check_for_update
+
 case "$COMMAND" in
+    update)   do_update; exit 0 ;;
     autolaunch) autolaunch_dispatch; exit 0 ;;
     start)    start_sessions; exit 0 ;;
     launch)   launch_single_session; exit 0 ;;

@@ -42,6 +42,18 @@
 # Default: default.md
 #DEFAULT_TEMPLATE="default.md"
 
+# ── Update check ──────────────────────────────────────────────────────────────
+
+# Check GitHub releases for newer versions (cached daily, TTY-only).
+# Set to false to disable update notifications.
+# Default: true
+#UPDATE_CHECK=true
+
+# Override binary paths if tmux/claude are not in PATH.
+# Default: resolved via 'command -v' at startup
+#TMUX_BIN="/path/to/tmux"
+#CLAUDE_BIN="/path/to/claude"
+
 # ── Multi-CLI-coder integration ────────────────────────────────────────────────
 
 # Files created as symlinks pointing at CLAUDE.md so other AI CLI coders
