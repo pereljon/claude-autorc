@@ -23,11 +23,20 @@
 **Description:** Process tree walk checks pane_pid → children → grandchildren. If Claude is deeper in the tree (e.g. extra shell wrapper), detection fails. Current launch path is exactly 2 levels (bash → claude) so this works in practice.
 **Workaround:** None needed currently. Would require recursive walk or `pgrep -a` to fix.
 
+### Installer upgrade UX could be smarter
+**Severity:** Low
+**Status:** Open - future improvement
+**Description:** On reinstall, the installer detects existing config and skips prompts. But it doesn't offer to show current settings, merge new config options added in newer versions, or let the user selectively update values. Users must manually edit `~/.claude-mux/config` to pick up new settings introduced in later versions.
+**Potential improvements:**
+- Show current config values during upgrade
+- Offer to add new settings (with defaults) that didn't exist in the old config
+- Option B: pre-fill prompts with existing config values and let user change them
+
 ### macOS only - no Linux/systemd support
 **Severity:** Medium
-**Status:** Open - by design
-**Description:** Uses macOS LaunchAgent (launchd), Homebrew paths (`/opt/homebrew/bin`), and macOS-specific tools. Core bash + tmux logic is portable but the LaunchAgent, installer, and path assumptions are not.
-**Workaround:** Core script works on Linux with manual path adjustments. No systemd unit file provided.
+**Status:** Open - partially addressed (path detection done, LaunchAgent/installer remain macOS-only)
+**Description:** Uses macOS LaunchAgent (launchd) and macOS-specific tools. Path detection was refactored to use `command -v` (no longer hardcodes `/opt/homebrew/bin`), so the core script now works on any platform where tmux and claude are in PATH. LaunchAgent and installer remain macOS-specific.
+**Remaining:** systemd user unit, XDG Autostart fallback, `uname -s` dispatch in installer. Planned for v1.7.
 
 ## Resolved
 
