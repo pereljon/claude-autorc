@@ -106,9 +106,33 @@ find_bin_dir() {
 
 DEFAULT_BIN_DIR="$(find_bin_dir)"
 
+# ── Detect existing install ───────────────────────────────────────────────────
+
+EXISTING_CONFIG="$HOME/.claude-mux/config"
+UPGRADE_MODE=false
+if [[ -f "$EXISTING_CONFIG" ]]; then
+    UPGRADE_MODE=true
+fi
+
 # ── Interactive prompts ───────────────────────────────────────────────────────
 
-if [[ "$INTERACTIVE" == "true" && -t 0 ]]; then
+if [[ "$UPGRADE_MODE" == "true" && "$INTERACTIVE" == "true" && -t 0 ]]; then
+    echo "claude-mux installer (upgrade)"
+    echo ""
+    echo "Existing config found at ~/.claude-mux/config — keeping as-is."
+    echo "Edit ~/.claude-mux/config to change settings."
+    echo ""
+
+    # Still allow BIN_DIR override
+    if [[ -z "$BIN_DIR" ]]; then
+        printf "Install location? [%s]: " "$DEFAULT_BIN_DIR"
+        read -r _input
+        BIN_DIR="${_input:-$DEFAULT_BIN_DIR}"
+        BIN_DIR="${BIN_DIR/#\~/$HOME}"
+    fi
+
+    echo ""
+elif [[ "$INTERACTIVE" == "true" && -t 0 ]]; then
     echo "claude-mux installer"
     echo ""
 
