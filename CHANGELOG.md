@@ -4,6 +4,15 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.7.2] — 2026-04-27
+
+### Fixed
+- **Start session confirmation**: injection prompt now instructs Claude to confirm by session name only (not directory path), since sessions appear by name in Remote Control. Removes hedged "should now be running" wording.
+- **`start new session` confirmation**: same name-only confirmation applied to the `start new session in FOLDER` trigger.
+
+### Changed
+- **Home session self-identification**: home session injection prompt now includes a line identifying itself as the always-on tmux session in the base directory, its protected status, and its role as the default Remote Control entry point.
+
 ## [1.7.1] — 2026-04-27
 
 ### Fixed
@@ -159,6 +168,7 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 - Logging to `~/Library/Logs/claude-autorc.log` (later `claude-mux.log`).
 
 [Unreleased]: https://github.com/pereljon/claude-mux/compare/v1.7.1...HEAD
+[1.7.2]: https://github.com/pereljon/claude-mux/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/pereljon/claude-mux/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/pereljon/claude-mux/compare/v1.6.2...v1.7.0
 [1.6.2]: https://github.com/pereljon/claude-mux/compare/v1.6.1...v1.6.2
