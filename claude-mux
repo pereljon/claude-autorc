@@ -502,7 +502,10 @@ log() {
     fi
 }
 
-# Returns true (0) if $1 > $2 using semantic versioning
+# Returns true (0) if $1 > $2 using semantic versioning.
+# Only handles numeric MAJOR.MINOR.PATCH. Pre-release suffixes (e.g. 1.7.0-rc.1)
+# are not supported and will compare incorrectly — this is acceptable since we
+# don't publish pre-release tags to GitHub releases.
 version_gt() {
     local IFS=.
     local -a v1=($1) v2=($2)
@@ -532,14 +535,15 @@ check_for_update() {
 
     # Check API at most once per day (86400 seconds)
     if (( now - last_check > 86400 )); then
+        local prev_latest="$latest"
         local api_response
         api_response=$(curl -sf --max-time 3 \
             "https://api.github.com/repos/pereljon/claude-mux/releases/latest" 2>/dev/null) || return
         latest=$(echo "$api_response" | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/' | head -1)
         [[ -z "$latest" ]] && return
         last_check=$now
-        # Reset notify timer if this is a new version
-        if [[ "$latest" != "$(echo "$cache" | awk '{print $2}')" ]]; then
+        # Reset notify timer if API returned a different version than what was cached
+        if [[ "$latest" != "$prev_latest" ]]; then
             last_notify=0
         fi
         echo "$last_check $latest $last_notify" > "$cache"
@@ -587,14 +591,20 @@ do_update() {
         exit 0
     fi
 
+    # Resolve install path early so both branches can use it for restart
+    local install_path
+    install_path=$(command -v claude-mux 2>/dev/null) || install_path="$CLAUDE_MUX_BIN"
+    if [[ -z "$install_path" ]]; then
+        echo "Error: cannot determine install path" >&2
+        exit 1
+    fi
+
     # Detect install method
     if command -v brew &>/dev/null && brew list claude-mux &>/dev/null 2>&1; then
         echo "Updating via Homebrew..."
         brew upgrade claude-mux
     else
         # Direct download
-        local install_path
-        install_path=$(command -v claude-mux 2>/dev/null) || install_path="$CLAUDE_MUX_BIN"
         local download_url="https://github.com/pereljon/claude-mux/releases/download/v${latest}/claude-mux"
 
         local tmp
@@ -605,10 +615,22 @@ do_update() {
             exit 1
         fi
 
-        # Sanity check
+        # Validate downloaded file: must be a script, reasonably sized, and contain a version string
         if ! head -1 "$tmp" | grep -q '^#!'; then
             rm -f "$tmp"
             echo "Error: downloaded file doesn't look like a script" >&2
+            exit 1
+        fi
+        local file_size
+        file_size=$(wc -c < "$tmp")
+        if (( file_size < 1000 )); then
+            rm -f "$tmp"
+            echo "Error: downloaded file is too small (${file_size} bytes) — likely not a valid script" >&2
+            exit 1
+        fi
+        if ! grep -q '^VERSION=' "$tmp"; then
+            rm -f "$tmp"
+            echo "Error: downloaded file missing VERSION string — likely corrupt" >&2
             exit 1
         fi
 
