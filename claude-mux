@@ -2,7 +2,7 @@
 # claude-mux — Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.7.4"
+VERSION="1.8.0"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -105,6 +105,7 @@ SHUTDOWN_SESSIONS=()
 RESTART_SESSIONS=()
 SETMODE_VALUE=""
 SETMODE_SESSIONS=()
+INSTALL_ARGS=()
 
 guide() {
     cat << 'EOF'
@@ -155,6 +156,11 @@ Commands:
   --permission-mode MODE [SESSION...]  Restart session(s) with the given permission mode
   --autolaunch             Invoked by LaunchAgent; dispatches based on LAUNCHAGENT_MODE
   --update                 Update claude-mux to the latest version
+  --install [OPTS...]      Run interactive setup (config + LaunchAgent)
+                           Options: --non-interactive, --base-dir DIR,
+                                    --launchagent-mode {none,home},
+                                    --home-model {sonnet,haiku,opus},
+                                    --no-launchagent
 
 Options:
   --no-template         With -n, skip applying CLAUDE.md template
@@ -227,6 +233,13 @@ while [[ $# -gt 0 ]]; do
         # Retained for now as a manual escape hatch; revisit after usage review.
         -a|--all)         set_command "-a" "start"; shift ;;
         --update)         set_command "--update" "update"; shift ;;
+        --install)
+            set_command "--install" "install"
+            shift
+            # Collect all remaining args for do_install to parse
+            INSTALL_ARGS=("$@")
+            break
+            ;;
         --autolaunch)     set_command "--autolaunch" "autolaunch"; shift ;;
         --force)          FORCE=true; shift ;;
         -d|--directory)
@@ -317,7 +330,7 @@ if [[ -f "$HOME/.claude-mux-rc" && ! -f "$CLAUDE_MUX_CONFIG" ]]; then
     fi
 fi
 
-# Ensure config directory and templates exist
+# Ensure config directory exists (idempotent, harmless)
 mkdir -p "$CLAUDE_MUX_DIR/templates"
 
 # Create empty default template if it doesn't exist
@@ -325,85 +338,16 @@ if [[ ! -f "$CLAUDE_MUX_DIR/templates/default.md" ]]; then
     touch "$CLAUDE_MUX_DIR/templates/default.md"
 fi
 
-if [[ ! -f "$CLAUDE_MUX_CONFIG" ]]; then
-    cat > "$CLAUDE_MUX_CONFIG" << 'CONFIG_EOF'
-# ~/.claude-mux/config — claude-mux user configuration
-# Generated on first run. Uncomment and edit settings to override defaults.
-# This file is sourced by claude-mux at startup.
-
-# Root directory to scan for Claude projects (directories containing .claude/).
-# Default: $HOME/Claude
-#BASE_DIR="$HOME/Claude"
-
-# Directory for log files.
-# Default: $HOME/Library/Logs
-#LOG_DIR="$HOME/Library/Logs"
-
-# Set Claude's permissions.defaultMode for each project via .claude/settings.local.json.
-# Valid values: "" (disabled), "default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"
-# Default: "auto"
-#DEFAULT_PERMISSION_MODE="auto"
-
-# When true, Claude sessions can send slash commands to OTHER sessions via tmux.
-# When false, sessions can only send commands to themselves.
-# Default: false
-#ALLOW_CROSS_SESSION_CONTROL=false
-
-# ── tmux session options ──────────────────────────────────────────────────────
-
-#TMUX_EXTENDED_KEYS=true           # Shift+Enter support (requires tmux 3.2+)
-#TMUX_TITLE_FORMAT='#S'            # Terminal/tab title (#S = session name, "" to disable)
-#TMUX_MOUSE=true                   # Mouse support (scroll, select, resize)
-#TMUX_HISTORY_LIMIT=50000          # Scrollback buffer (tmux default is 2000)
-#TMUX_CLIPBOARD=true               # System clipboard via OSC 52
-#TMUX_DEFAULT_TERMINAL="tmux-256color"  # Terminal type for color rendering
-#TMUX_ESCAPE_TIME=10               # Escape delay in ms (tmux default is 500)
-#TMUX_MONITOR_ACTIVITY=true        # Activity notifications from other sessions
-
-# ── Templates ─────────────────────────────────────────────────────────────────
-
-# Directory containing CLAUDE.md template files.
-# Default: $HOME/.claude-mux/templates
-#TEMPLATES_DIR="$HOME/.claude-mux/templates"
-
-# Default template applied to new projects (-n). Set to "" to disable.
-# Default: default.md
-#DEFAULT_TEMPLATE="default.md"
-
-# ── Multi-CLI-coder integration ────────────────────────────────────────────────
-
-# Files created as symlinks pointing at CLAUDE.md so other AI CLI coders
-# (Codex CLI reads AGENTS.md, Gemini CLI reads GEMINI.md, etc.) pick up
-# the same project instructions. Set to empty string "" to disable.
-# Default: "AGENTS.md GEMINI.md"
-#MULTI_CODER_FILES="AGENTS.md GEMINI.md"
-
-# ── Batch mode ────────────────────────────────────────────────────────────────
-
-# Seconds to wait between launching each session.
-# Default: 5
-#SLEEP_BETWEEN=5
-
-# LaunchAgent mode — what happens at login:
-#   none  — do nothing
-#   home  — launch a single 'home' session in \$BASE_DIR (protected from shutdown) (default)
-#LAUNCHAGENT_MODE=home
-
-# Model for the home session. Set to "" to use the default model.
-# Default: sonnet
-#HOME_SESSION_MODEL="sonnet"
-CONFIG_EOF
-    if [[ -d "$LOG_DIR" ]]; then
-        echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Created config at $CLAUDE_MUX_CONFIG" >> "$LOG_DIR/claude-mux.log"
+# Source config if present (otherwise defaults from earlier in the script apply).
+# First-run detection happens later, after function definitions, just before dispatch.
+if [[ -f "$CLAUDE_MUX_CONFIG" ]]; then
+    # shellcheck source=/dev/null
+    _cfg_perms=$(stat -f '%A' "$CLAUDE_MUX_CONFIG" 2>/dev/null)
+    if [[ -n "$_cfg_perms" && "$_cfg_perms" != "600" && "$_cfg_perms" != "400" ]]; then
+        echo "WARN: $CLAUDE_MUX_CONFIG has unsafe permissions ($_cfg_perms) — expected 600" >&2
     fi
+    source "$CLAUDE_MUX_CONFIG"
 fi
-
-# shellcheck source=/dev/null
-_cfg_perms=$(stat -f '%A' "$CLAUDE_MUX_CONFIG" 2>/dev/null)
-if [[ -n "$_cfg_perms" && "$_cfg_perms" != "600" && "$_cfg_perms" != "400" ]]; then
-    echo "WARN: $CLAUDE_MUX_CONFIG has unsafe permissions ($_cfg_perms) — expected 600" >&2
-fi
-source "$CLAUDE_MUX_CONFIG"
 
 # Backward compat: LAUNCHAGENT_ENABLED=true (legacy) → LAUNCHAGENT_MODE=home
 # (Previously mapped to batch, but batch mode has been removed.)
@@ -659,6 +603,345 @@ do_update() {
             exec "$install_path" --restart
         fi
     fi
+}
+
+# Generate the LaunchAgent plist content. Uses ${CLAUDE_MUX_BIN} for the binary path.
+generate_plist() {
+    local xml_bin
+    xml_bin="${CLAUDE_MUX_BIN//&/&amp;}"
+    xml_bin="${xml_bin//</&lt;}"
+    xml_bin="${xml_bin//>/&gt;}"
+    xml_bin="${xml_bin//\"/&quot;}"
+    cat << PLIST_EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.claude-mux</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>exec "${xml_bin}" --autolaunch</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
+PLIST_EOF
+}
+
+# Write ~/.claude-mux/config from current install settings.
+# Args: base_dir launchagent_mode home_model permission_mode cross_session_control
+write_install_config() {
+    local base_dir="$1"
+    local launchagent_mode="$2"
+    local home_model="$3"
+    local permission_mode="$4"
+    local cross_session="$5"
+
+    # Format settings: commented out when at default, active when customized
+    local base_dir_line="BASE_DIR=\"${base_dir}\""
+    [[ "$base_dir" == "$HOME/Claude" ]] && base_dir_line="#BASE_DIR=\"\$HOME/Claude\""
+
+    local permission_line="DEFAULT_PERMISSION_MODE=\"${permission_mode}\""
+    [[ "$permission_mode" == "auto" ]] && permission_line="#DEFAULT_PERMISSION_MODE=\"auto\""
+
+    local cross_line="ALLOW_CROSS_SESSION_CONTROL=${cross_session}"
+    [[ "$cross_session" == "false" ]] && cross_line="#ALLOW_CROSS_SESSION_CONTROL=false"
+
+    local launchagent_line="LAUNCHAGENT_MODE=${launchagent_mode}"
+    [[ "$launchagent_mode" == "home" ]] && launchagent_line="#LAUNCHAGENT_MODE=home"
+
+    local model_line="HOME_SESSION_MODEL=\"${home_model}\""
+    [[ "$home_model" == "sonnet" ]] && model_line="#HOME_SESSION_MODEL=\"sonnet\""
+
+    mkdir -p "$CLAUDE_MUX_DIR"
+    # All variable lines are pre-computed above. Use printf to write the config
+    # so user-supplied values (base_dir, etc.) cannot break heredoc parsing.
+    printf '%s\n' \
+        "# ~/.claude-mux/config — claude-mux user configuration" \
+        "# Generated by 'claude-mux --install'. Uncomment and edit to override defaults." \
+        "" \
+        "# Root directory to scan for Claude projects (directories containing .claude/)." \
+        "# Default: \$HOME/Claude" \
+        "$base_dir_line" \
+        "" \
+        "# Directory for log files." \
+        "# Default: \$HOME/Library/Logs" \
+        '#LOG_DIR="$HOME/Library/Logs"' \
+        "" \
+        "# Set Claude's permissions.defaultMode for each project." \
+        '# Valid: "" (disabled), "default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"' \
+        "# Default: \"auto\"" \
+        "$permission_line" \
+        "" \
+        "# Allow sessions to send slash commands to other sessions via tmux." \
+        "# Default: false" \
+        "$cross_line" \
+        "" \
+        "# ── Templates ─────────────────────────────────────────────────────────────────" \
+        '#TEMPLATES_DIR="$HOME/.claude-mux/templates"' \
+        '#DEFAULT_TEMPLATE="default.md"' \
+        "" \
+        "# ── LaunchAgent ───────────────────────────────────────────────────────────────" \
+        "# LaunchAgent mode at login: none, home (default)" \
+        "$launchagent_line" \
+        "" \
+        "# Model for the home session. Set to \"\" to use the default model." \
+        "# Default: sonnet" \
+        "$model_line" \
+        "" \
+        "# ── Batch mode ────────────────────────────────────────────────────────────────" \
+        "#SLEEP_BETWEEN=5" \
+        > "$CLAUDE_MUX_CONFIG"
+    chmod 600 "$CLAUDE_MUX_CONFIG"
+}
+
+# Interactive setup (config + LaunchAgent). Invoked by --install or first-run prompt.
+# Reads INSTALL_ARGS for non-interactive flags.
+do_install() {
+    local interactive=true
+    local base_dir=""
+    local launchagent_mode=""
+    local home_model=""
+    local permission_mode="auto"
+    local cross_session="false"
+    local launchagent_set=false
+    local home_model_set=false
+
+    # Parse install-specific flags from INSTALL_ARGS
+    local i=0
+    while [[ $i -lt ${#INSTALL_ARGS[@]} ]]; do
+        local arg="${INSTALL_ARGS[$i]}"
+        case "$arg" in
+            --non-interactive) interactive=false; ((i++)) ;;
+            --base-dir)
+                ((i++))
+                if [[ $i -ge ${#INSTALL_ARGS[@]} ]]; then
+                    echo "ERROR: --base-dir requires a value" >&2; exit 1
+                fi
+                base_dir="${INSTALL_ARGS[$i]}"
+                ((i++))
+                ;;
+            --launchagent-mode)
+                ((i++))
+                if [[ $i -ge ${#INSTALL_ARGS[@]} ]]; then
+                    echo "ERROR: --launchagent-mode requires a value" >&2; exit 1
+                fi
+                launchagent_mode="${INSTALL_ARGS[$i]}"
+                case "$launchagent_mode" in
+                    none|home) ;;
+                    *) echo "ERROR: --launchagent-mode must be 'none' or 'home'" >&2; exit 1 ;;
+                esac
+                launchagent_set=true
+                ((i++))
+                ;;
+            --home-model)
+                ((i++))
+                if [[ $i -ge ${#INSTALL_ARGS[@]} ]]; then
+                    echo "ERROR: --home-model requires a value" >&2; exit 1
+                fi
+                home_model="${INSTALL_ARGS[$i]}"
+                case "$home_model" in
+                    sonnet|haiku|opus|"") ;;
+                    *) echo "ERROR: --home-model must be 'sonnet', 'haiku', 'opus', or empty" >&2; exit 1 ;;
+                esac
+                home_model_set=true
+                ((i++))
+                ;;
+            --no-launchagent)
+                launchagent_mode="none"
+                launchagent_set=true
+                ((i++))
+                ;;
+            --permission-mode)
+                ((i++))
+                if [[ $i -ge ${#INSTALL_ARGS[@]} ]]; then
+                    echo "ERROR: --permission-mode requires a value" >&2; exit 1
+                fi
+                permission_mode="${INSTALL_ARGS[$i]}"
+                case "$permission_mode" in
+                    ""|default|acceptEdits|plan|auto|dontAsk|bypassPermissions) ;;
+                    *) echo "ERROR: --permission-mode must be one of: default, acceptEdits, plan, auto, dontAsk, bypassPermissions" >&2; exit 1 ;;
+                esac
+                ((i++))
+                ;;
+            --cross-session-control) cross_session="true"; ((i++)) ;;
+            -*) echo "ERROR: Unknown --install option: $arg" >&2; exit 1 ;;
+            *) echo "ERROR: --install does not accept positional arguments (got: $arg)" >&2; exit 1 ;;
+        esac
+    done
+
+    # Detect existing config
+    local has_existing_config=false
+    [[ -f "$CLAUDE_MUX_CONFIG" ]] && has_existing_config=true
+
+    if [[ "$has_existing_config" == "true" ]]; then
+        if [[ "$interactive" == "true" && -t 0 ]]; then
+            echo "Existing config found at $CLAUDE_MUX_CONFIG"
+            printf "Reconfigure? [y/N]: "
+            read -r answer
+            if [[ ! "$answer" =~ ^[Yy] ]]; then
+                echo "Setup canceled — existing config kept."
+                return 0
+            fi
+        elif [[ "$interactive" == "false" && "$FORCE" != "true" ]]; then
+            echo "ERROR: Config already exists at $CLAUDE_MUX_CONFIG" >&2
+            echo "Use --force to overwrite, or run without --non-interactive to reconfigure." >&2
+            exit 1
+        fi
+    fi
+
+    # Warn if reconfiguring from inside the home session
+    if [[ -n "${TMUX:-}" ]]; then
+        local current_session
+        current_session="$("$TMUX_BIN" display-message -p '#S' 2>/dev/null)"
+        if [[ "$current_session" == "home" ]]; then
+            echo ""
+            echo "Note: you are running --install from inside the home session."
+            echo "LaunchAgent changes take effect at next login."
+            echo "Your current home session will continue running."
+            echo ""
+        fi
+    fi
+
+    # Interactive prompts
+    if [[ "$interactive" == "true" && -t 0 ]]; then
+        echo "claude-mux setup"
+        echo ""
+
+        # BASE_DIR
+        if [[ -z "$base_dir" ]]; then
+            local default_base="$HOME/Claude"
+            printf "Where are your Claude projects? [%s]: " "$default_base"
+            read -r _input
+            base_dir="${_input:-$default_base}"
+            base_dir="${base_dir/#\~/$HOME}"
+        fi
+
+        # LaunchAgent mode
+        if [[ "$launchagent_set" != "true" ]]; then
+            echo ""
+            echo "A home session is a lightweight Claude session that runs in your base"
+            echo "directory. It stays running so Remote Control is always available from"
+            echo "the Claude mobile app, and can manage all your other sessions."
+            echo ""
+            echo "Note: enabling this means a Claude session will start automatically"
+            echo "every time you log in."
+            echo ""
+            printf "Start a home session at login? [Y/n]: "
+            read -r _input
+            case "${_input:-y}" in
+                [Yy]|[Yy]es) launchagent_mode="home" ;;
+                [Nn]|[Nn]o)  launchagent_mode="none" ;;
+                *) echo "Invalid choice, defaulting to yes"; launchagent_mode="home" ;;
+            esac
+            launchagent_set=true
+        fi
+
+        # Home session model (only if mode is home and not preset)
+        if [[ "$launchagent_mode" == "home" && "$home_model_set" != "true" ]]; then
+            local default_model="sonnet"
+            printf "Home session model? (sonnet/haiku/opus) [%s]: " "$default_model"
+            read -r _input
+            if [[ -z "$_input" ]]; then
+                home_model="$default_model"
+            else
+                case "$_input" in
+                    sonnet|haiku|opus) home_model="$_input" ;;
+                    *) echo "Invalid model, using default: $default_model"; home_model="$default_model" ;;
+                esac
+            fi
+        fi
+        echo ""
+    fi
+
+    # Apply defaults for any unset values (non-interactive path)
+    base_dir="${base_dir:-$HOME/Claude}"
+    [[ "$launchagent_set" != "true" ]] && launchagent_mode="home"
+    [[ -z "$home_model" ]] && home_model="sonnet"
+
+    # Validate base_dir: reject characters that would break bash config sourcing
+    if [[ "$base_dir" =~ [\'\"\;\`\$\(\)\{\}\|\&\<\>] ]]; then
+        echo "ERROR: --base-dir contains characters not allowed in a config path: $base_dir" >&2
+        exit 1
+    fi
+
+    # Validate parent directory exists before attempting mkdir
+    local base_parent
+    base_parent="$(dirname "$base_dir")"
+    if [[ ! -d "$base_parent" ]]; then
+        echo "ERROR: Parent directory does not exist: $base_parent" >&2
+        exit 1
+    fi
+
+    # Create base dir if missing
+    if [[ ! -d "$base_dir" ]]; then
+        echo "Creating base directory $base_dir..."
+        mkdir -p "$base_dir"
+    fi
+
+    # Ensure templates dir + default template exist
+    mkdir -p "$CLAUDE_MUX_DIR/templates"
+    if [[ ! -f "$CLAUDE_MUX_DIR/templates/default.md" ]]; then
+        touch "$CLAUDE_MUX_DIR/templates/default.md"
+    fi
+
+    # Write config
+    echo "Writing config to $CLAUDE_MUX_CONFIG..."
+    write_install_config "$base_dir" "$launchagent_mode" "$home_model" "$permission_mode" "$cross_session"
+
+    # LaunchAgent handling
+    local plist_path="$HOME/Library/LaunchAgents/com.user.claude-mux.plist"
+    local launchagents_dir="$HOME/Library/LaunchAgents"
+
+    # Always unload existing agent (silent if not loaded)
+    if [[ -f "$plist_path" ]]; then
+        launchctl bootout "gui/$(id -u)" "$plist_path" 2>/dev/null || true
+    fi
+
+    if [[ "$launchagent_mode" == "none" ]]; then
+        # Remove plist if present
+        if [[ -f "$plist_path" ]]; then
+            echo "Removing LaunchAgent plist..."
+            rm -f "$plist_path"
+        fi
+        echo "LaunchAgent disabled (LAUNCHAGENT_MODE=none)."
+    else
+        # Write plist and load
+        mkdir -p "$launchagents_dir"
+        echo "Writing LaunchAgent plist to $plist_path..."
+        generate_plist > "$plist_path"
+        chmod 644 "$plist_path"
+        if launchctl bootstrap "gui/$(id -u)" "$plist_path" 2>/dev/null; then
+            echo "LaunchAgent loaded."
+        else
+            echo "WARNING: launchctl bootstrap failed — you may need to log out and back in." >&2
+        fi
+    fi
+
+    # Summary
+    echo ""
+    echo "Setup complete."
+    echo ""
+    echo "  Binary:       $CLAUDE_MUX_BIN"
+    echo "  Base dir:     $base_dir"
+    echo "  Config:       $CLAUDE_MUX_CONFIG"
+    echo "  LaunchAgent:  $launchagent_mode"
+    [[ "$launchagent_mode" == "home" ]] && echo "  Home model:   $home_model"
+    echo ""
+    echo "Run 'claude-mux' in any project directory to start a session."
 }
 
 # Returns true if claude is running anywhere in the process tree rooted at pane_pid
@@ -1033,13 +1316,15 @@ status_claude_sessions() {
     local sessions
     sessions=$("$TMUX_BIN" list-sessions -F '#{session_name}' 2>/dev/null) || sessions=""
 
-    # Build set of active session names
-    # Get sessions with local clients attached
-    local attached_sessions=""
-    attached_sessions=$("$TMUX_BIN" list-clients -F '#{session_name}' 2>/dev/null) || attached_sessions=""
+    # Detect the calling session (for > prefix)
+    local calling_session=""
+    if [[ -n "${TMUX_PANE:-}" ]]; then
+        calling_session="$("$TMUX_BIN" display-message -p '#S' 2>/dev/null)"
+    fi
 
+    # Build set of active session names
     local active_sessions=""
-    local active=0 running=0 stopped=0 unmanaged=0 idle=0
+    local running=0 protected=0 stopped=0 unmanaged=0 idle=0
 
     # Collect all rows, then format as aligned columns
     local rows=""
@@ -1055,23 +1340,26 @@ status_claude_sessions() {
                 # Shorten home prefix
                 _dir="${_dir/#$HOME/~}"
 
-                local _marker=""
-                is_protected_session "$session" && _marker="*"
+                # Mark calling session with > prefix
+                local _display_name="$session"
+                [[ "$session" == "$calling_session" ]] && _display_name="> $session"
+
+                local _status
                 if claude_running_in_session "$session"; then
-                    if echo "$attached_sessions" | grep -qx "$session"; then
-                        rows="${rows}active${_marker}|${session}|${_dir}
-"
-                        (( active++ ))
+                    if is_protected_session "$session"; then
+                        _status="protected"
+                        (( protected++ ))
                     else
-                        rows="${rows}running${_marker}|${session}|${_dir}
-"
+                        _status="running"
                         (( running++ ))
                     fi
                 else
-                    rows="${rows}stopped${_marker}|${session}|${_dir}
-"
+                    _status="stopped"
                     (( stopped++ ))
                 fi
+
+                rows="${rows}${_status}|${_display_name}|${_dir}
+"
             else
                 (( unmanaged++ ))
             fi
@@ -1105,9 +1393,7 @@ status_claude_sessions() {
     fi
 
     echo ""
-    local summary=""
-    [[ $active -gt 0 ]] && summary="${active} active, "
-    summary="${summary}${running} running, ${stopped} stopped"
+    local summary="${running} running, ${protected} protected, ${stopped} stopped"
     [[ "$show_idle" == "true" ]] && summary="${summary}, ${idle} idle"
     echo "$summary"
     [[ $unmanaged -gt 0 ]] && echo "($unmanaged non-managed tmux sessions hidden)"
@@ -1908,8 +2194,44 @@ autolaunch_dispatch() {
 # Check for updates (non-blocking, TTY-only, cached daily)
 check_for_update
 
+# First-run detection: if config is missing AND command needs config,
+# either prompt for setup (TTY) or exit with hint (non-TTY).
+# Commands that don't need config: install, update, list-templates, send,
+# shutdown, autolaunch (LaunchAgent context — handled in autolaunch_dispatch).
+case "$COMMAND" in
+    install|update|list-templates|send|shutdown|autolaunch)
+        # Skip config-required check; these can run without config
+        ;;
+    *)
+        if [[ ! -f "$CLAUDE_MUX_CONFIG" ]]; then
+            if [[ -t 0 && -t 1 ]]; then
+                echo "No config found at $CLAUDE_MUX_CONFIG"
+                printf "Run setup now? [Y/n]: "
+                read -r _setup_answer
+                case "${_setup_answer:-y}" in
+                    [Yy]|[Yy]es|"")
+                        do_install
+                        echo ""
+                        echo "Setup complete. Re-run your command to continue."
+                        exit 0
+                        ;;
+                    *)
+                        echo "Setup canceled. Run 'claude-mux --install' when ready."
+                        exit 0
+                        ;;
+                esac
+            else
+                echo "ERROR: No config found at $CLAUDE_MUX_CONFIG" >&2
+                echo "Run 'claude-mux --install' to set up." >&2
+                exit 1
+            fi
+        fi
+        ;;
+esac
+
 case "$COMMAND" in
     update)   do_update; exit 0 ;;
+    install)  do_install; exit 0 ;;
     autolaunch) autolaunch_dispatch; exit 0 ;;
     start)    start_sessions; exit 0 ;;
     launch)   launch_single_session; exit 0 ;;
