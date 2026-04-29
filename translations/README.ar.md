@@ -22,6 +22,7 @@ claude-mux يعالج كل ذلك. يُغلِّف Claude Code داخل tmux لت
 ```bash
 brew tap pereljon/tap
 brew install claude-mux
+claude-mux --install
 ```
 
 ```bash

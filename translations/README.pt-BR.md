@@ -22,6 +22,7 @@ claude-mux resolve tudo isso. Ele envolve o Claude Code no tmux para que as sess
 ```bash
 brew tap pereljon/tap
 brew install claude-mux
+claude-mux --install
 ```
 
 ```bash

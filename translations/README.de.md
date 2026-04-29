@@ -24,6 +24,7 @@ claude-mux behebt all das. Es kapselt Claude Code in tmux, sodass Sitzungen pers
 ```bash
 brew tap pereljon/tap
 brew install claude-mux
+claude-mux --install
 ```
 
 ```bash

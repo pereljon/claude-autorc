@@ -22,6 +22,7 @@ claude-mux はこれらをすべて解決します。Claude Code を tmux でラ
 ```bash
 brew tap pereljon/tap
 brew install claude-mux
+claude-mux --install
 ```
 
 ```bash

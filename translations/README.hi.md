@@ -22,6 +22,7 @@ claude-mux यह सब ठीक करता है। यह Claude Code क
 ```bash
 brew tap pereljon/tap
 brew install claude-mux
+claude-mux --install
 ```
 
 ```bash

@@ -22,6 +22,7 @@ claude-mux פותר את כל אלה. הוא עוטף את Claude Code ב-tmux �
 ```bash
 brew tap pereljon/tap
 brew install claude-mux
+claude-mux --install
 ```
 
 ```bash
