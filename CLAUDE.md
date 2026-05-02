@@ -14,6 +14,7 @@ Infrastructure, not a framework. Keep sessions alive, get out of the way.
 - **Support, don't impose.** Make Claude Code persistent and accessible, not reshaped.
 - **Conversational first.** Natural language in-session is the primary interface.
 - **Eliminate complexity, don't relocate it.** Every abstraction must remove more burden than it introduces.
+- **Session management is invisible.** Claude should be able to manage sessions without permission prompts interrupting the conversation. Achieved two ways: (1) claude-mux is added to each project's allow list by `setup_claude_mux_permissions()` so Claude can run it freely; (2) the injection instructs Claude to use claude-mux rather than raw shell commands that would trigger prompts. Destructive operations (e.g. `--delete`) may still require confirmation — that's intentional, not a gap.
 
 ## Documentation Roles
 
@@ -33,13 +34,44 @@ These affect how code changes should be made. Full architecture is in `implentat
 - **Ready trigger**: sends `ready` after Claude loads; expects "Ready." response to confirm session is alive
 - **Output display tags**: listing commands wrap output in `<assistant-must-display>` XML tags when stdout is not a TTY
 - **Caller-last restart ordering**: `--restart` (all) from inside a session restarts the calling session last
-- **Home session**: session named `home` in `$BASE_DIR`, always protected, requires `--force` to shut down
+- **Home session**: session named `home` in `$BASE_DIR`, protected by default (via `$BASE_DIR/.claudemux-protected` marker, created by `--install`), requires `--force` to shut down
 - **Version injection**: `get_version_prompt_lines()` reads `~/.claude-mux/.update-check`; if a newer version is cached, it appends an update note telling Claude to notify the user and suggest "update claude-mux"
 - **Session status**: `>` prefix marks the calling session (via `$TMUX_PANE`); `protected` status for protected+running sessions; `stopped` for protected+not-running
+
+## Project Folder Indicators — Marker-File Philosophy
+
+Per-project state lives in the project folder, not in central config. State files use the prefix `.claudemux-` and are auto-added to `.gitignore` when claude-mux creates them in a git-tracked project.
+
+| Marker | Meaning |
+|---|---|
+| `.claudemux-ignore` | Hide project from `claude-mux -L` and `discover_projects()` |
+| `.claudemux-protected` | Set `@claude-mux-protected = 1` on the tmux session at launch |
+
+**Why marker files, not config:**
+- State follows the folder across renames, moves, and machine syncs.
+- Discoverable from `ls -la` inside the project.
+- One gitignore pattern (`.claudemux-*`) covers all current and future markers.
+- No central registry to corrupt or drift.
+
+**Conventions when adding new per-project state:**
+- Boolean flags: empty file at `.claudemux-<name>`, presence = on.
+- Richer state: JSON file at `.claudemux-<name>.json` (no current cases).
+- Always auto-gitignore via `ensure_gitignore_entry()`.
+- Folder-name conventions (`-prefix` and `.prefix`) are legacy and still respected by `discover_projects()`, but new features use markers.
+
+**When NOT to use marker files:**
+- Truly user-global preferences → `~/.claude-mux/config`.
+- Truly session-runtime state → tmux user options (e.g. `@claude-mux-protected`).
+- Markers are for state that should travel with the project folder.
 
 ## Security Context
 
 Single-user tool on the user's own account. Threat model: accidental footguns (path traversal, injection via user-supplied args), not multi-user or adversarial scenarios.
+
+## Known Issues / Hypotheses
+
+- **`bypassPermissions` confirmation prompt**: Claude shows a warning with "No, exit" / "Yes, I accept" when launched with `bypassPermissions`. The startup poller detects "Yes, I accept", sends Down (to move from option 1 to option 2), waits 1s for the UI to register the selection, then sends Enter. The 1s pause is critical — without it the keystrokes race and confirm "No, exit" instead.
+- **`bypassPermissions` requires restart to enter**: cannot switch a running session to `bypassPermissions` mid-session — must restart with the flag. Once in the Shift+Tab cycle, re-entry from other modes is silent (no prompt). Confirmation prompt only fires on initial launch.
 
 ## Working Rules
 
@@ -57,6 +89,16 @@ Commands that attach (`-t`, `-d`/`-n` without `--no-attach`) are user-only -- ne
 ## Development Workflow
 
 Edit the repo copy (`claude-mux`), not the installed copy (`~/bin/claude-mux`). Deploy after commit: `cp claude-mux ~/bin/`
+
+### Code Review Before Release
+
+Required scope depends on version bump:
+
+- **Patch (x.y.Z)**: review only the changed functions
+- **Minor (x.Y.0)**: review all functions added or modified in the release
+- **Major (X.0.0)**: full code review of the entire script
+
+Use the `superpowers:code-reviewer` agent. Address CRITICAL and HIGH issues before committing.
 
 ## Git Approvals
 
@@ -88,5 +130,8 @@ After any code change, check whether these need updating:
 - `CHANGELOG.md` (new features, fixes, removals per release)
 - `VERSION=` bump if needed (semver: patch/minor/major)
 - Deprecation: warn for 1-2 minor versions before removing (details in `implentation-spec.md`)
+- **When adding a config var**: update `config_help()` in the script and add an entry to `config.example`
+- **When adding a CLI flag**: update `commands_help()` in the script and the compressed feature list in `build_system_prompt()`
+- **When adding a new lookup flag** (`--*-help`, `--*-commands`): add it to the Reference lookups meta-block in `build_system_prompt()`
 
 When proposing or making multiple changes, consider logical ordering -- some changes should be performed before others (e.g. move code to a new location before updating references to it, validate inputs before using them).

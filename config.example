@@ -2,6 +2,10 @@
 # Reference template. The installer (install.sh) creates ~/.claude-mux/config automatically.
 # For manual setup, copy this file to ~/.claude-mux/config and uncomment settings to override defaults.
 # This file is sourced by claude-mux at startup.
+#
+# Per-project state (hide/protect) lives in .claudemux-* marker files at each project root,
+# not here. Use: claude-mux --hide, --show, --protect, --unprotect
+# Run: claude-mux --config-help   to see all options with types and descriptions.
 
 # Root directory to scan for Claude projects (directories containing .claude/).
 # Default: $HOME/Claude

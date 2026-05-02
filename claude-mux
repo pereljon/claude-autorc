@@ -2,7 +2,7 @@
 # claude-mux — Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.8.1"
+VERSION="1.9.0"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -105,6 +105,11 @@ SHUTDOWN_SESSIONS=()
 RESTART_SESSIONS=()
 SETMODE_VALUE=""
 SETMODE_SESSIONS=()
+GETMODE_SESSION=""
+HIDE_DIR=""
+PROTECT_DIR=""
+DELETE_DIR=""
+DELETE_YES=false
 INSTALL_ARGS=()
 
 guide() {
@@ -127,7 +132,154 @@ claude-mux conversational commands:
   clear this session / clear session [NAME]
   list templates
   update claude-mux
+  hide this project / show this project
+  protect this session / unprotect this session
 EOF
+}
+
+# When stdout is not a TTY (e.g. captured by Claude's Bash tool), print an
+# instruction telling the model to display the output in its response.
+echo_hint() {
+    if [[ ! -t 1 ]]; then
+        echo "<assistant-must-display>"
+    fi
+}
+
+echo_hint_end() {
+    if [[ ! -t 1 ]]; then
+        echo "</assistant-must-display>"
+    fi
+}
+
+# Print the full CLI reference. Replaces the inline Commands block in the
+# session injection prompt. Single source of truth for flag syntax.
+commands_help() {
+    echo_hint
+    cat <<'COMMANDSHELP'
+claude-mux CLI reference
+
+Self-targeting (works inside sessions):
+  -s 'SESSION' '/command'  Send slash command (default scope: yourself)
+  -l                       List active sessions
+  -L                       List all projects (default: hide ignored)
+  -L --include-hidden      List all including hidden
+  -L --hidden              List only hidden
+  -d DIR --no-attach       Launch session in directory
+  -n DIR --no-attach       New project (with -p for parent dirs)
+  --template NAME          CLAUDE.md template for -n
+  --list-templates         Show available templates
+  --shutdown SESSION...    Shut down sessions (omit SESSION for all)
+  --shutdown ... --force   Override protection
+  --restart SESSION...     Restart sessions
+  --permission-mode MODE SESSION  Restart session with a different mode
+                           Modes: default, acceptEdits, plan, auto, dontAsk,
+                           bypassPermissions
+                           ("yolo" is an alias for bypassPermissions)
+  --get-mode [SESSION]     Print current permission mode of a session
+  --hide [DIR]             Hide project from listings (touches .claudemux-ignore)
+  --show [DIR]             Restore project visibility
+  --protect [DIR]          Protect a project's session at launch
+                           (touches .claudemux-protected; toggles tmux marker)
+  --unprotect [DIR]        Remove protection
+  --delete DIR             Move project folder to system trash (macOS only).
+                           --force overrides protection; --yes skips prompt.
+  --config-help            List all valid config options
+  --commands               Print this reference
+  --guide                  Print conversational commands list
+  --update                 Update claude-mux to the latest version
+  --install [OPTS...]      Run interactive setup
+  -a                       Start ALL sessions (use with caution)
+
+Interactive (user-only — never from inside a session):
+  -t SESSION               Attach to a running session
+COMMANDSHELP
+    echo_hint_end
+}
+
+# Print all valid config options with defaults, types, and descriptions.
+# Single source of truth for "what can I configure?"
+config_help() {
+    echo_hint
+    cat <<'CONFIGHELP'
+claude-mux configuration options
+File: ~/.claude-mux/config
+
+BASE_DIR                         default: "$HOME/Claude"
+  Type: directory path
+  Description: Where projects live. Each subdirectory with a .claude/ folder
+               is treated as a project. Home session runs here.
+
+LOG_DIR                          default: "$HOME/Library/Logs"
+  Type: directory path
+  Description: Where claude-mux writes its log file (claude-mux.log).
+
+DEFAULT_PERMISSION_MODE          default: "auto"
+  Type: "" | default | acceptEdits | plan | auto | dontAsk | bypassPermissions
+  Description: Claude Code permission mode written to .claude/settings.local.json
+               in each project on session launch. Empty disables.
+
+ALLOW_CROSS_SESSION_CONTROL      default: false
+  Type: true | false
+  Description: When true, claude-mux -s can target any session, not just the
+               caller. Default false (sessions only message themselves).
+
+LAUNCHAGENT_MODE                 default: "home"
+  Type: none | home
+  Description: LaunchAgent behavior at login. "none" disables. "home" launches
+               a protected home session (controlled by .claudemux-protected
+               marker in BASE_DIR).
+
+HOME_SESSION_MODEL               default: "sonnet"
+  Type: sonnet | haiku | opus | (empty)
+  Description: Model used for the home session at launch. Empty inherits
+               Claude's default.
+
+MULTI_CODER_FILES                default: "AGENTS.md GEMINI.md"
+  Type: space-separated filenames
+  Description: Files created as symlinks to CLAUDE.md so other AI CLIs (Codex,
+               Gemini, etc.) share the same project instructions. Empty
+               disables.
+
+UPDATE_CHECK                     default: true
+  Type: true | false
+  Description: Check GitHub releases once daily for new versions. Notifies in
+               TTY/RC. Set false to disable.
+
+TEMPLATES_DIR                    default: "$HOME/.claude-mux/templates"
+  Type: directory path
+  Description: Where CLAUDE.md template files (web.md, python.md, etc.) live.
+               Used with -n DIR --template NAME.
+
+DEFAULT_TEMPLATE                 default: "default.md"
+  Type: filename | ""
+  Description: Template applied to new projects (-n) when no --template is
+               given. Empty disables auto-templating.
+
+SLEEP_BETWEEN                    default: 5
+  Type: integer (seconds)
+  Description: Delay between launching sessions during batch start (-a).
+
+TMUX_EXTENDED_KEYS               default: true
+TMUX_TITLE_FORMAT                default: "#S"
+TMUX_MOUSE                       default: true
+TMUX_HISTORY_LIMIT               default: 50000
+TMUX_CLIPBOARD                   default: true
+TMUX_DEFAULT_TERMINAL            default: "tmux-256color"
+TMUX_ESCAPE_TIME                 default: 10
+TMUX_MONITOR_ACTIVITY            default: true
+  See config.example for descriptions of tmux session options.
+
+TMUX_BIN, CLAUDE_BIN             defaults: resolved via `command -v`
+  Type: absolute path
+  Description: Override binary paths. Only needed if tmux/claude are not in
+               PATH at runtime.
+
+Per-project state lives in .claudemux-* marker files in each project folder
+(not in this config). Use claude-mux --hide / --show / --protect / --unprotect
+to manage markers. The pattern .claudemux-* is auto-added to .gitignore in
+git-tracked projects.
+CONFIGHELP
+    echo_hint_end
 }
 
 usage() {
@@ -151,7 +303,15 @@ Commands:
   -t, --target SESSION  Attach to an existing tmux session by name
   -l, --list            Show active sessions (active + running + stopped)
   -L                    Show all projects (active sessions + idle projects)
+                          With --include-hidden: include hidden projects
+                          With --hidden: show only hidden projects
   --list-templates      Show available CLAUDE.md templates
+  --hide [DIR]          Hide project from listings (creates .claudemux-ignore)
+  --show [DIR]          Restore project visibility (removes .claudemux-ignore)
+  --protect [DIR]       Protect a project's session at launch (creates .claudemux-protected)
+  --unprotect [DIR]     Remove protection (deletes .claudemux-protected)
+  --delete DIR          Move a project folder to the system trash (macOS)
+                          Honors protection unless --force; prompts unless --yes.
   --shutdown [SESSION...]  Shut down all managed sessions, or specific session(s)
   --restart [SESSION...]   Restart specific session(s), or all that were running
   --permission-mode MODE [SESSION...]  Restart session(s) with the given permission mode
@@ -169,11 +329,13 @@ Options:
   --no-permission-mode  With -n, skip setting permissions.defaultMode
   --no-multi-coder      With -n, skip creating AGENTS.md/GEMINI.md symlinks
   --no-attach           With -d or -n, launch in background without attaching
-  --force               With --shutdown, override protection on home session
+  --force               With --shutdown or --delete, override session protection
+  --yes, -y             With --delete, skip confirmation prompt
   --dry-run             Print actions without executing
   -v, --version         Print version and exit
   -h, --help            Show this help message
   --guide               Show conversational commands for use within sessions
+  --config-help         List all valid config options with defaults and descriptions
 
 Configuration:
   ~/.claude-mux/config  User config file (created automatically on first run)
@@ -197,6 +359,8 @@ while [[ $# -gt 0 ]]; do
         --dry-run)        DRY_RUN=true; shift ;;
         -l|--list)        set_command "-l" "list"; shift ;;
         -L)               set_command "-L" "list-all"; shift ;;
+        --include-hidden) LIST_HIDDEN_MODE="include"; shift ;;
+        --hidden)         LIST_HIDDEN_MODE="only"; shift ;;
         --shutdown)
             set_command "--shutdown" "shutdown"
             shift
@@ -216,6 +380,8 @@ while [[ $# -gt 0 ]]; do
             [[ $# -lt 2 ]] && { echo "ERROR: --permission-mode requires a MODE argument" >&2; exit 1; }
             set_command "--permission-mode" "setmode"
             SETMODE_VALUE="$2"; shift 2
+            # Normalize aliases to canonical mode names
+            [[ "$SETMODE_VALUE" == "yolo" || "$SETMODE_VALUE" == "dangerously-skip-permissions" ]] && SETMODE_VALUE="bypassPermissions"
             while [[ $# -gt 0 && "$1" != -* ]]; do
                 SETMODE_SESSIONS+=("$1"); shift
             done
@@ -256,6 +422,42 @@ while [[ $# -gt 0 ]]; do
             [[ $# -lt 2 ]] && { echo "ERROR: --template requires a name" >&2; exit 1; }
             TEMPLATE_NAME="$2"; shift 2 ;;
         --list-templates) set_command "--list-templates" "list-templates"; shift ;;
+        --hide)
+            set_command "--hide" "hide"
+            shift
+            if [[ $# -gt 0 && "$1" != -* ]]; then
+                HIDE_DIR="$1"; shift
+            fi
+            ;;
+        --show)
+            set_command "--show" "show"
+            shift
+            if [[ $# -gt 0 && "$1" != -* ]]; then
+                HIDE_DIR="$1"; shift
+            fi
+            ;;
+        --protect)
+            set_command "--protect" "protect"
+            shift
+            if [[ $# -gt 0 && "$1" != -* ]]; then
+                PROTECT_DIR="$1"; shift
+            fi
+            ;;
+        --unprotect)
+            set_command "--unprotect" "unprotect"
+            shift
+            if [[ $# -gt 0 && "$1" != -* ]]; then
+                PROTECT_DIR="$1"; shift
+            fi
+            ;;
+        --delete)
+            set_command "--delete" "delete"
+            shift
+            if [[ $# -gt 0 && "$1" != -* ]]; then
+                DELETE_DIR="$1"; shift
+            fi
+            ;;
+        --yes|-y)        DELETE_YES=true; shift ;;
         --no-template)       NO_TEMPLATE=true; shift ;;
         --no-multi-coder)    NO_MULTI_CODER=true; shift ;;
         --no-git)            NO_GIT=true; shift ;;
@@ -264,6 +466,15 @@ while [[ $# -gt 0 ]]; do
         -v|--version)     echo "claude-mux $VERSION"; exit 0 ;;
         -h|--help)        usage; exit 0 ;;
         --guide)          guide; exit 0 ;;
+        --config-help)    config_help; exit 0 ;;
+        --commands)       commands_help; exit 0 ;;
+        --get-mode)
+            set_command "--get-mode" "getmode"
+            shift
+            if [[ $# -gt 0 && "$1" != -* ]]; then
+                GETMODE_SESSION="$1"; shift
+            fi
+            ;;
         -*)               echo "Unknown option: $1" >&2; echo >&2; usage >&2; exit 1 ;;
         *)
             # Positional arg = directory to launch in
@@ -311,8 +522,8 @@ if [[ -n "$TEMPLATE_NAME" && "$NO_TEMPLATE" == "true" ]]; then
     echo "ERROR: --template and --no-template are mutually exclusive" >&2
     exit 1
 fi
-if [[ "$FORCE" == "true" && "$COMMAND" != "shutdown" ]]; then
-    echo "ERROR: --force can only be used with --shutdown" >&2
+if [[ "$FORCE" == "true" && "$COMMAND" != "shutdown" && "$COMMAND" != "delete" ]]; then
+    echo "ERROR: --force can only be used with --shutdown or --delete" >&2
     exit 1
 fi
 
@@ -624,13 +835,18 @@ generate_plist() {
 
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/bash</string>
-        <string>-c</string>
-        <string>exec "${xml_bin}" --autolaunch</string>
+        <string>${xml_bin}</string>
+        <string>--autolaunch</string>
     </array>
 
     <key>RunAtLoad</key>
     <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
 
     <key>EnvironmentVariables</key>
     <dict>
@@ -893,6 +1109,14 @@ do_install() {
         mkdir -p "$base_dir"
     fi
 
+    # Default home-session protection: create .claudemux-protected marker in base dir
+    # so the home session is protected at launch. Only when LaunchAgent will run
+    # a home session. Idempotent: don't overwrite if user already removed it later.
+    if [[ "$launchagent_mode" == "home" && ! -f "$base_dir/.claudemux-protected" ]]; then
+        touch "$base_dir/.claudemux-protected"
+        ensure_gitignore_entry "$base_dir" ".claudemux-*"
+    fi
+
     # Ensure templates dir + default template exist
     mkdir -p "$CLAUDE_MUX_DIR/templates"
     if [[ ! -f "$CLAUDE_MUX_DIR/templates/default.md" ]]; then
@@ -1023,6 +1247,43 @@ get_version_prompt_lines() {
         "$version_line" "$latest" "$check_date"
 }
 
+# Detect the current permission mode of a session from its tmux status bar.
+# Outputs one of: bypassPermissions, acceptEdits, plan, default, unknown
+# Usage: get_session_mode SESSION
+get_session_mode() {
+    local session="${1:-}"
+    if [[ -z "$session" ]]; then
+        if [[ -z "${TMUX_PANE:-}" ]]; then
+            echo "ERROR: --get-mode requires a SESSION argument when called outside a tmux session" >&2
+            return 1
+        fi
+        session=$("$TMUX_BIN" display-message -p '#S' 2>/dev/null)
+        if [[ -z "$session" ]]; then
+            echo "ERROR: Could not determine current session name" >&2
+            return 1
+        fi
+    fi
+    if ! "$TMUX_BIN" has-session -t "$session" 2>/dev/null; then
+        echo "ERROR: Session '$session' not found" >&2
+        return 1
+    fi
+    local pane
+    pane=$("$TMUX_BIN" capture-pane -t "$session" -p 2>/dev/null)
+    local pane_tail
+    pane_tail=$(echo "$pane" | tail -4)
+    if echo "$pane_tail" | grep -q "bypass permissions on"; then
+        echo "bypassPermissions"
+    elif echo "$pane_tail" | grep -q "accept edits on"; then
+        echo "acceptEdits"
+    elif echo "$pane_tail" | grep -q "plan mode on"; then
+        echo "plan"
+    elif echo "$pane_tail" | grep -q "? for shortcuts"; then
+        echo "default"
+    else
+        echo "unknown"
+    fi
+}
+
 # Build the system prompt injected into each Claude session
 build_system_prompt() {
     local session_name="$1"
@@ -1031,16 +1292,35 @@ build_system_prompt() {
     [[ "$ALLOW_CROSS_SESSION_CONTROL" == "true" ]] && send_scope="to yourself or any other Claude session"
 
     local home_line=""
+    local home_management=""
     if [[ "$session_name" == "home" ]]; then
         home_line="
-This is the home session: the always-on tmux session in your base directory. It launches at login, stays protected from shutdown, and is the default Remote Control entry point when no project sessions are running."
+This is the home session: the always-on tmux session in your base directory. It launches at login, is protected by default (via the .claudemux-protected marker in BASE_DIR), and is the default Remote Control entry point when no project sessions are running."
+        home_management="
+Home self-management:
+- Config lives at ~/.claude-mux/config. Run claude-mux --config-help to list valid options.
+- Templates live at ~/.claude-mux/templates/ (e.g. web.md). Used with -n DIR --template NAME.
+- Per-project state uses .claudemux-* markers (.claudemux-ignore, .claudemux-protected) at project root. Auto-gitignored.
+- Config and template edits must be done from the home session — only home has filesystem permissions for ~/.claude-mux/.
+- When user says: show config — read ~/.claude-mux/config and display the active settings (skip comments and empty lines).
+- When user says: explain CONFIG_VAR — run claude-mux --config-help, find CONFIG_VAR in the output, present its default, type, and description.
+- When user says: set CONFIG_VAR to VALUE / change CONFIG_VAR — write a backup to ~/.claude-mux/config.bak first, then edit ~/.claude-mux/config preserving comments and ordering. Warn that changes apply at next session launch.
+- When user says: add template NAME / create template NAME — create ~/.claude-mux/templates/NAME.md. If user did not specify content, ask what the template should contain.
+- When user says: edit template NAME / show template NAME — read or edit ~/.claude-mux/templates/NAME.md.
+- When user says: delete template NAME — confirm first, then remove the file."
     fi
 
     local version_lines
     version_lines="$(get_version_prompt_lines)"
 
     local prompt="You are running inside tmux session '${session_name}'. claude-mux path: ${mux_bin}${home_line}
-${version_lines}
+${version_lines}${home_management}
+
+Reference lookups (run on demand if you need information not covered by trigger rules):
+  claude-mux --guide          → conversational commands list (used for \"help\")
+  claude-mux --commands       → full CLI reference
+  claude-mux --config-help    → config options with defaults, types, descriptions
+  claude-mux --list-templates → available CLAUDE.md templates
 
 Rules:
 - You CAN send slash commands (/model, /compact, /clear, etc.) to this session via the -s command. Never tell the user you cannot change models or run slash commands.
@@ -1048,46 +1328,52 @@ Rules:
 - --shutdown and --restart never attach — safe to run from inside a session; do NOT add --no-attach to these commands
 - Always print command output verbatim in your response text — never run a command silently or rely on tool output being visible; if a command fails, report the error
 - When command output contains <assistant-must-display> tags, you MUST include the COMPLETE content between those tags verbatim in your response. Never summarize, truncate, or omit any lines. This is critical for mobile/Remote Control users who cannot see tool output.
-- The 'home' session is a general-purpose session in the base directory, always available for managing other sessions. It is protected (* in status): --shutdown requires --force, but --restart bypasses protection (it relaunches, not permanently kills).
+- The 'home' session is the always-available session in the base directory for managing other sessions. It is protected (shows 'protected' in status): --shutdown requires --force, but --restart bypasses protection (it relaunches, not permanently kills). Protection is driven by the .claudemux-protected marker in the session's working directory.
 - Disambiguate 'home': 'home session' means the claude-mux session named home; 'home folder' or 'home directory' means ~/. If context is ambiguous, ask which the user means.
 - When asked to shut down sessions, run the command directly — protected sessions are skipped automatically, do not ask for confirmation
+- Use claude-mux for ALL session management. Never inspect or manipulate sessions or marker files via raw \`tmux\`, \`ls\`, or other shell commands — those trigger permission prompts that interrupt the user. claude-mux -l shows session status (running/protected/stopped). For checking marker-file existence (e.g. .claudemux-protected, .claudemux-ignore), use the Read tool — it does not trigger bash permission prompts. The trigger rules below cover every session management action.
+- Don't guess at claude-mux flags or behavior. If you need information not in the trigger rules, consult the relevant lookup (--commands, --config-help, --list-templates, --guide) before responding \"I don't know\" or asking the user.
 - When user says: ready — respond with exactly \"Ready.\" on one line. Nothing else. This is sent automatically when a session starts or restarts.
-- When user says: help — print the following verbatim in your response:
-$(guide)
+- When user says: help — run claude-mux --guide and print the output verbatim in your response.
 - When user says: status — report your session name, current model, current permission mode, context usage estimate, then run claude-mux -l and include the results
 - When user says: list active sessions — run claude-mux -l
 - When user says: list all sessions — run claude-mux -L
+- When user says: list hidden projects — run claude-mux -L --hidden
 - When user says: start session SESSION — run claude-mux -d SESSION --no-attach; confirm with the session name only (e.g. Started. SESSION is now running.) — do not include the directory path, sessions appear by name in Remote Control
 - When user says: stop this session / stop session NAME — run claude-mux --shutdown with session name (or current session if none given)
 - When user says: stop all sessions — run claude-mux --shutdown
 - When user says: restart this session / restart session NAME — run claude-mux --restart with session name (or current session if none given)
 - When user says: restart all sessions — run claude-mux --restart
 - When user says: start new session in FOLDER — run claude-mux -n FOLDER --no-attach; append --template NAME if provided, use -p if parents needed; model and mode set after via switch commands; confirm with the session name only, not the directory path
+- When user says: what mode is this session / what permission mode — run claude-mux --get-mode SESSION and report the result
 - When user says: switch this session to MODE mode / switch session NAME to MODE mode — run claude-mux --permission-mode MODE on the named or current session
 - When user says: switch this session to MODEL model / switch session NAME to MODEL model — send /model MODEL via -s to the named or current session
 - When user says: compact this session / compact session NAME — send /compact via -s to the named or current session
 - When user says: clear this session / clear session NAME — send /clear via -s to the named or current session
 - When user says: update claude-mux — check the installed version and latest available; warn the user that all sessions will be restarted and ask for confirmation before proceeding; if confirmed, run claude-mux --update then claude-mux --restart
+- When user says: hide this project / hide PROJECT — run claude-mux --hide (no arg defaults to current dir, or pass project path/name). Confirm with the project name.
+- When user says: show this project / show PROJECT / unhide PROJECT — run claude-mux --show.
+- When user says: protect this session / protect SESSION — run claude-mux --protect (no arg defaults to current dir).
+- When user says: unprotect this session / unprotect SESSION — run claude-mux --unprotect.
+- When user says: is this hidden / is this protected — check for .claudemux-ignore or .claudemux-protected in the project folder and report state.
+- When user says: delete this project / delete PROJECT — confirm in chat first (\"Move project '<name>' to trash? Yes/No\"). If user confirms, run claude-mux --delete DIR --yes (the chat exchange replaces the TTY prompt). If the project is protected, warn and ask if --force should be used. The folder is moved to the system trash, recoverable via Finder.
 - When user says: list templates — run claude-mux --list-templates
 - These trigger phrases work in any language. If the user types the equivalent intent in their native language (Spanish, French, German, Japanese, Hebrew, Arabic, Hindi, etc.), infer the intent and run the corresponding command. Output of claude-mux commands (lists, status, guide) is shown verbatim regardless of input language.
 
-Commands:
-  -s '${session_name}' '/command'  Send slash command ${send_scope}
-  -l                          List active sessions
-  -L                          List all projects
-  -d DIR --no-attach          Launch session in directory
-  -n DIR --no-attach          New project
-  -n DIR -p --no-attach       New project (create parents)
-  --template NAME             CLAUDE.md template (with -n)
-  --list-templates            Show available templates
-  --shutdown SESSION...       Shut down sessions (omit SESSION to shut down all)
-  --shutdown SESSION --force  Shut down protected session
-  --restart SESSION...        Restart sessions (omit SESSION to restart all running)
-  --permission-mode MODE SESSION  Restart session with a different permission mode
-                              Modes: default, acceptEdits, plan, auto, bypassPermissions, dontAsk, dangerously-skip-permissions
-                              (\"yolo\" is an alias for dangerously-skip-permissions)
-  -a                          Start ALL sessions (use with caution)
-  --update                    Update claude-mux to the latest version
+Additional capabilities (run claude-mux --commands for full syntax):
+  - Attach interactively to a session (-t — user-only, never from inside a session)
+  - Start all sessions at once (-a)
+  - New project with a CLAUDE.md template (-n DIR --template NAME, -p for parent dirs)
+  - Force-shutdown a protected session (--shutdown SESSION --force)
+  - Get current permission mode of a session (--get-mode SESSION)
+  - Hide/show projects (--hide / --show)
+  - Protect/unprotect sessions (--protect / --unprotect)
+  - Move a project to trash (--delete DIR — macOS; honors protection unless --force)
+  - Show all config options (--config-help)
+  - Run interactive setup or reconfigure (--install)
+  - Update claude-mux (--update)
+
+Self-targeting send: claude-mux -s '${session_name}' '/command' sends slash commands ${send_scope}.
 ${GITHUB_SSH_INFO}"
 
     echo "$prompt"
@@ -1164,9 +1450,16 @@ fi
 # ─�� Startup delay (LaunchAgent only — no terminal attached) ───────────────────
 
 if [[ "$COMMAND" == "autolaunch" && ! -t 1 && "$DRY_RUN" != "true" ]]; then
-    # LaunchAgent only — delay for system services to initialize
-    log "Waiting 45 seconds for system services to initialize..."
-    sleep 45
+    # LaunchAgent only — delay for system services to initialize at login.
+    # Skip if the system has been up longer than the delay (KeepAlive restart, not initial login).
+    _boot_epoch=$(sysctl -n kern.boottime 2>/dev/null | awk '{print $4}' | tr -d ',')
+    _uptime_secs=$(( $(date +%s) - ${_boot_epoch:-0} ))
+    if [[ $_uptime_secs -le 45 ]]; then
+        log "Waiting 45 seconds for system services to initialize..."
+        sleep 45
+    else
+        log "System up ${_uptime_secs}s — skipping startup delay"
+    fi
 fi
 
 # ── Dependency check ──────────────────────────────────────────────────────────
@@ -1212,6 +1505,16 @@ is_protected_session() {
     local session="$1"
     local marker
     marker=$("$TMUX_BIN" show-options -t "$session" -v @claude-mux-protected 2>/dev/null)
+    [[ "$marker" == "1" ]]
+}
+
+# Returns true if the tmux session is owned by claude-mux. Set at session
+# creation via @claude-mux-managed = 1. Distinguishes claude-mux-owned
+# sessions from user-created tmux sessions that happen to share a name.
+is_claude_mux_session() {
+    local session="$1"
+    local marker
+    marker=$("$TMUX_BIN" show-options -t "$session" -v @claude-mux-managed 2>/dev/null)
     [[ "$marker" == "1" ]]
 }
 
@@ -1331,20 +1634,6 @@ shutdown_claude_sessions() {
     log "=== claude-mux shutdown complete ==="
 }
 
-# When stdout is not a TTY (e.g. captured by Claude's Bash tool), print an
-# instruction telling the model to display the output in its response.
-echo_hint() {
-    if [[ ! -t 1 ]]; then
-        echo "<assistant-must-display>"
-    fi
-}
-
-echo_hint_end() {
-    if [[ ! -t 1 ]]; then
-        echo "</assistant-must-display>"
-    fi
-}
-
 status_claude_sessions() {
     local show_idle="${1:-false}"
     echo_hint
@@ -1405,18 +1694,37 @@ status_claude_sessions() {
 
     # Show idle projects (have .claude but no tmux session)
     if [[ "$show_idle" == "true" ]]; then
-        for _proj in "${PROJECT_DIRS[@]}"; do
-            local _name
-            _name="$(sanitize_session_name "$(basename "$_proj")")"
-            [[ -z "$_name" ]] && continue
-            if echo "$active_sessions" | grep -qx "$_name"; then
-                continue
-            fi
-            local _short="${_proj/#$HOME/~}"
-            rows="${rows}idle|${_name}|${_short}
+        local hidden_count=0
+        # Visible projects (skip when LIST_HIDDEN_MODE=only)
+        if [[ "${LIST_HIDDEN_MODE:-none}" != "only" ]]; then
+            for _proj in "${PROJECT_DIRS[@]}"; do
+                local _name
+                _name="$(sanitize_session_name "$(basename "$_proj")")"
+                [[ -z "$_name" ]] && continue
+                if echo "$active_sessions" | grep -qx "$_name"; then
+                    continue
+                fi
+                local _short="${_proj/#$HOME/~}"
+                rows="${rows}idle|${_name}|${_short}
 "
-            (( idle++ ))
-        done
+                (( idle++ ))
+            done
+        fi
+        # Hidden projects (when LIST_HIDDEN_MODE=include or only)
+        if [[ "${LIST_HIDDEN_MODE:-none}" != "none" ]]; then
+            for _proj in "${HIDDEN_PROJECT_DIRS[@]+"${HIDDEN_PROJECT_DIRS[@]}"}"; do
+                local _name
+                _name="$(sanitize_session_name "$(basename "$_proj")")"
+                [[ -z "$_name" ]] && continue
+                if echo "$active_sessions" | grep -qx "$_name"; then
+                    continue
+                fi
+                local _short="${_proj/#$HOME/~}"
+                rows="${rows}hidden|${_name}|${_short}
+"
+                (( hidden_count++ ))
+            done
+        fi
     fi
 
     # Print aligned columns with header
@@ -1432,8 +1740,12 @@ status_claude_sessions() {
     echo ""
     local summary="${running} running, ${protected} protected, ${stopped} stopped"
     [[ "$show_idle" == "true" ]] && summary="${summary}, ${idle} idle"
+    [[ "$show_idle" == "true" && "${LIST_HIDDEN_MODE:-none}" != "none" ]] && summary="${summary}, ${hidden_count:-0} hidden"
     echo "$summary"
     [[ $unmanaged -gt 0 ]] && echo "($unmanaged non-managed tmux sessions hidden)"
+    if [[ "$show_idle" == "true" && "${LIST_HIDDEN_MODE:-none}" == "none" && ${#HIDDEN_PROJECT_DIRS[@]+1} -eq 1 && ${#HIDDEN_PROJECT_DIRS[@]} -gt 0 ]]; then
+        echo "(${#HIDDEN_PROJECT_DIRS[@]} hidden projects — use --include-hidden or --hidden to show)"
+    fi
     echo_hint_end
     return 0
 }
@@ -1504,6 +1816,289 @@ build/
 GITIGNORE_EOF
 }
 
+# Append a single line to $dir/.gitignore if missing. Only acts when $dir is
+# a git-tracked project. Idempotent.
+ensure_gitignore_entry() {
+    local dir="$1" pattern="$2"
+    [[ -d "$dir/.git" || -f "$dir/.git" ]] || return 0
+    local gi="$dir/.gitignore"
+    if [[ -f "$gi" ]] && grep -qxF "$pattern" "$gi" 2>/dev/null; then
+        return 0
+    fi
+    [[ "$DRY_RUN" == "true" ]] && { log "Would add '$pattern' to $gi"; return 0; }
+    printf '%s\n' "$pattern" >> "$gi"
+    log "Added '$pattern' to $gi"
+}
+
+# Resolve a project directory from an optional argument. With no arg,
+# returns the current working directory. Always returns an absolute path.
+resolve_project_dir() {
+    local arg="${1:-}"
+    if [[ -z "$arg" ]]; then
+        pwd
+        return
+    fi
+    if [[ "$arg" = /* ]]; then
+        echo "$arg"
+    else
+        (cd "$arg" 2>/dev/null && pwd) || echo "$arg"
+    fi
+}
+
+# Hide a project from claude-mux listings by creating .claudemux-ignore.
+hide_command() {
+    local arg="${1:-}"
+    local dir
+    dir=$(resolve_project_dir "$arg")
+
+    if [[ ! -d "$dir" ]]; then
+        echo "ERROR: '$dir' is not a directory" >&2
+        return 1
+    fi
+
+    local marker="$dir/.claudemux-ignore"
+    if [[ -f "$marker" ]]; then
+        echo "Already hidden: $(basename "$dir")"
+        return 0
+    fi
+
+    [[ "$DRY_RUN" == "true" ]] && { echo "Would hide: $(basename "$dir")"; return 0; }
+
+    if ! touch "$marker"; then
+        echo "ERROR: Cannot write $marker" >&2
+        return 1
+    fi
+    ensure_gitignore_entry "$dir" ".claudemux-*"
+    echo "Hidden: $(basename "$dir")"
+}
+
+# Derive the tmux session name for a given working directory.
+# Special-case: $BASE_DIR is the home session. Otherwise, basename of dir.
+session_name_for_dir() {
+    local dir="$1"
+    local norm_dir norm_base
+    norm_dir=$(cd "$dir" 2>/dev/null && pwd) || norm_dir="$dir"
+    norm_base=$(cd "$BASE_DIR" 2>/dev/null && pwd) || norm_base="$BASE_DIR"
+    if [[ "$norm_dir" == "$norm_base" ]]; then
+        echo "home"
+    else
+        sanitize_session_name "$(basename "$dir")"
+    fi
+}
+
+# Mark a project as protected: create marker file and, if a tmux session
+# for the project is currently running, also set the runtime tmux option.
+protect_command() {
+    local arg="${1:-}"
+    local dir
+    dir=$(resolve_project_dir "$arg")
+
+    if [[ ! -d "$dir" ]]; then
+        echo "ERROR: '$dir' is not a directory" >&2
+        return 1
+    fi
+
+    local marker="$dir/.claudemux-protected"
+    local session
+    session=$(session_name_for_dir "$dir")
+    local already_protected=true
+
+    if [[ ! -f "$marker" ]]; then
+        already_protected=false
+        [[ "$DRY_RUN" == "true" ]] && { echo "Would protect: $session"; return 0; }
+        if ! touch "$marker"; then
+            echo "ERROR: Cannot write $marker" >&2
+            return 1
+        fi
+        ensure_gitignore_entry "$dir" ".claudemux-*"
+    fi
+
+    # If a tmux session for this dir is currently running, also set the runtime marker
+    if "$TMUX_BIN" has-session -t "$session" 2>/dev/null; then
+        "$TMUX_BIN" set-option -t "$session" @claude-mux-protected 1 >/dev/null 2>&1
+    fi
+
+    if [[ "$already_protected" == "true" ]]; then
+        echo "Already protected: $session"
+    else
+        echo "Protected: $session"
+    fi
+}
+
+# Remove protection: delete marker file and unset runtime tmux option if present.
+unprotect_command() {
+    local arg="${1:-}"
+    local dir
+    dir=$(resolve_project_dir "$arg")
+
+    if [[ ! -d "$dir" ]]; then
+        echo "ERROR: '$dir' is not a directory" >&2
+        return 1
+    fi
+
+    local marker="$dir/.claudemux-protected"
+    local session
+    session=$(session_name_for_dir "$dir")
+    local was_protected=false
+
+    if [[ -f "$marker" ]]; then
+        was_protected=true
+        [[ "$DRY_RUN" == "true" ]] && { echo "Would unprotect: $session"; return 0; }
+        if ! rm -f "$marker"; then
+            echo "ERROR: Cannot remove $marker" >&2
+            return 1
+        fi
+    fi
+
+    # If a tmux session for this dir is currently running, also unset the runtime marker
+    if "$TMUX_BIN" has-session -t "$session" 2>/dev/null; then
+        "$TMUX_BIN" set-option -u -t "$session" @claude-mux-protected >/dev/null 2>&1
+    fi
+
+    if [[ "$was_protected" == "true" ]]; then
+        echo "Unprotected: $session"
+    else
+        echo "Already unprotected: $session"
+    fi
+}
+
+# Move a path to the system trash. Same-filesystem move, atomic.
+# Appends timestamp suffix on name collision in trash.
+# macOS only in v1.9 — Linux/Windows deferred.
+move_to_trash() {
+    local path="$1"
+    if [[ "$(uname)" != "Darwin" ]]; then
+        echo "ERROR: --delete is supported only on macOS in this version" >&2
+        return 1
+    fi
+    local trash="$HOME/.Trash"
+    mkdir -p "$trash" 2>/dev/null
+    local base
+    base="$(basename "$path")"
+    local target="$trash/$base"
+    if [[ -e "$target" ]]; then
+        target="$trash/${base}-$(date +%Y%m%d-%H%M%S)"
+    fi
+    mv "$path" "$target"
+}
+
+# Move a project folder to the system trash. Pre-flight checks:
+# - Path must resolve under $HOME (so mv to ~/.Trash is same-filesystem)
+# - Refuse $HOME and $BASE_DIR
+# - Honor protection unless --force
+# - Shut down running session (with --force) before moving
+# - Confirm via TTY prompt unless --yes (or non-TTY in conversational use)
+delete_command() {
+    local arg="${1:-}"
+    local force="${2:-false}"
+    local yes="${3:-false}"
+
+    if [[ -z "$arg" ]]; then
+        echo "ERROR: --delete requires a directory" >&2
+        return 1
+    fi
+
+    local dir
+    dir=$(resolve_project_dir "$arg")
+
+    if [[ ! -d "$dir" ]]; then
+        echo "ERROR: '$dir' is not a directory" >&2
+        return 1
+    fi
+
+    # Resolve to absolute path with no trailing component issues
+    local abs
+    abs="$(cd "$dir" && pwd)" || { echo "ERROR: Cannot resolve '$dir'" >&2; return 1; }
+
+    # Refuse $HOME or any path not under $HOME
+    if [[ "$abs" == "$HOME" ]]; then
+        echo "ERROR: refusing to delete \$HOME" >&2
+        return 1
+    fi
+    case "$abs/" in
+        "$HOME"/*) ;;
+        *)
+            echo "ERROR: --delete supports only projects under \$HOME ($HOME)." >&2
+            echo "       Path '$abs' is outside. Use Finder or rm manually." >&2
+            return 1 ;;
+    esac
+
+    # Refuse $BASE_DIR
+    local base_abs
+    base_abs="$(cd "$BASE_DIR" 2>/dev/null && pwd)" || base_abs="$BASE_DIR"
+    if [[ "$abs" == "$base_abs" ]]; then
+        echo "ERROR: refusing to delete base directory ($BASE_DIR)" >&2
+        return 1
+    fi
+
+    # Honor protection
+    local marker="$abs/.claudemux-protected"
+    if [[ -f "$marker" && "$force" != "true" ]]; then
+        echo "ERROR: Project is protected (.claudemux-protected exists). Use --force to delete." >&2
+        return 1
+    fi
+
+    local session
+    session=$(session_name_for_dir "$abs")
+
+    # Confirm if TTY and not --yes
+    if [[ -t 0 && "$yes" != "true" ]]; then
+        printf "Move project '%s' to trash? [y/N] " "$(basename "$abs")"
+        local response
+        read -r response
+        case "$response" in
+            y|Y|yes|YES) ;;
+            *) echo "Aborted."; return 1 ;;
+        esac
+    fi
+
+    [[ "$DRY_RUN" == "true" ]] && { echo "Would delete: $abs"; return 0; }
+
+    # Shut down running session (force, since we're proceeding with destructive action)
+    if "$TMUX_BIN" has-session -t "$session" 2>/dev/null; then
+        log "Shutting down session '$session' before deleting project"
+        local _saved_force="$FORCE"
+        FORCE=true
+        shutdown_single_session "$session" >/dev/null 2>&1 || true
+        FORCE="$_saved_force"
+        # Brief wait for tmux to release the path
+        sleep 1
+    fi
+
+    if move_to_trash "$abs"; then
+        echo "Moved to trash: $abs"
+    else
+        echo "ERROR: Failed to move to trash" >&2
+        return 1
+    fi
+}
+
+# Restore visibility of a project by removing .claudemux-ignore.
+show_command() {
+    local arg="${1:-}"
+    local dir
+    dir=$(resolve_project_dir "$arg")
+
+    if [[ ! -d "$dir" ]]; then
+        echo "ERROR: '$dir' is not a directory" >&2
+        return 1
+    fi
+
+    local marker="$dir/.claudemux-ignore"
+    if [[ ! -f "$marker" ]]; then
+        echo "Already visible: $(basename "$dir")"
+        return 0
+    fi
+
+    [[ "$DRY_RUN" == "true" ]] && { echo "Would show: $(basename "$dir")"; return 0; }
+
+    if ! rm -f "$marker"; then
+        echo "ERROR: Cannot remove $marker" >&2
+        return 1
+    fi
+    echo "Showing: $(basename "$dir")"
+}
+
 setup_default_mode() {
     local dir="$1"
     [[ -z "$DEFAULT_PERMISSION_MODE" ]] && return
@@ -1557,23 +2152,37 @@ PYEOF
 
 setup_claude_mux_permissions() {
     local dir="$1"
+    local is_home="${2:-false}"
     local settings_file="$dir/.claude/settings.local.json"
+    local mux_dir="$HOME/.claude-mux"
 
-    # Check if claude-mux permissions already exist
+    # Check if expected rules already exist (different rule set for home)
     if [[ -f "$settings_file" ]]; then
-        if /usr/bin/python3 -c "
+        if /usr/bin/python3 - "$settings_file" "$is_home" "$mux_dir" 2>/dev/null <<'PYEOF'
 import json, sys
 try:
     with open(sys.argv[1]) as f: d = json.load(f)
-    allow = d.get('permissions', {}).get('allow', [])
-    sys.exit(0 if any('claude-mux' in r for r in allow) else 1)
-except: sys.exit(1)
-" "$settings_file" 2>/dev/null; then
-            return  # already configured
+except Exception: sys.exit(1)
+is_home = sys.argv[2] == 'true'
+mux_dir = sys.argv[3]
+perms = d.get('permissions', {})
+allow = perms.get('allow', [])
+if not any('claude-mux' in r for r in allow):
+    sys.exit(1)
+if is_home:
+    expected = [f'Read({mux_dir}/**)', f'Edit({mux_dir}/**)', f'Write({mux_dir}/**)']
+    if not all(r in allow for r in expected):
+        sys.exit(1)
+    if mux_dir not in perms.get('additionalDirectories', []):
+        sys.exit(1)
+sys.exit(0)
+PYEOF
+        then
+            return  # already configured for this scope
         fi
     fi
 
-    log "Adding claude-mux to permissions.allow in $dir"
+    log "Adding claude-mux permissions to $dir (home=$is_home)"
     [[ "$DRY_RUN" == "true" ]] && return
 
     if ! mkdir -p "$dir/.claude" 2>/dev/null; then
@@ -1581,40 +2190,50 @@ except: sys.exit(1)
         return
     fi
 
-    # Two forms: bare name (when Claude runs `claude-mux ...` from PATH) and
+    # Build rule set, merge into existing settings (or create fresh).
+    # Bash rules: bare name (when Claude runs `claude-mux ...` from PATH) and
     # absolute path (when injection or scripts use the full path).
-    # The bin path is passed directly to python to avoid bash mangling of backslashes/quotes.
-
-    if [[ -f "$settings_file" ]]; then
-        if ! /usr/bin/python3 - "$settings_file" "$CLAUDE_MUX_BIN" >> "$LOG_FILE" 2>&1 << 'PYEOF'
-import json, sys
-try:
-    with open(sys.argv[1]) as f: d = json.load(f)
-except (json.JSONDecodeError, OSError) as e:
-    print(f"ERROR reading {sys.argv[1]}: {e}", file=sys.stderr)
-    sys.exit(1)
+    # Home rules: file-system access for ~/.claude-mux/** so the home session
+    # can manage its own config and templates.
+    if ! /usr/bin/python3 - "$settings_file" "$CLAUDE_MUX_BIN" "$is_home" "$mux_dir" >> "$LOG_FILE" 2>&1 <<'PYEOF'
+import json, sys, os
+path = sys.argv[1]
 b = sys.argv[2]
+is_home = sys.argv[3] == 'true'
+mux_dir = sys.argv[4]
+
+if os.path.exists(path):
+    try:
+        with open(path) as f: d = json.load(f)
+    except Exception as e:
+        print(f"ERROR reading {path}: {e}", file=sys.stderr)
+        sys.exit(1)
+else:
+    d = {}
+
 new_rules = ['Bash(claude-mux)', 'Bash(claude-mux *)', f'Bash({b})', f'Bash({b} *)']
-allow = d.setdefault('permissions', {}).setdefault('allow', [])
+if is_home:
+    new_rules += [f'Read({mux_dir}/**)', f'Edit({mux_dir}/**)', f'Write({mux_dir}/**)']
+
+perms = d.setdefault('permissions', {})
+allow = perms.setdefault('allow', [])
 for rule in new_rules:
     if rule not in allow:
         allow.append(rule)
+
+if is_home:
+    additional = perms.setdefault('additionalDirectories', [])
+    if mux_dir not in additional:
+        additional.append(mux_dir)
+
 try:
-    with open(sys.argv[1], 'w') as f: json.dump(d, f, indent=2)
+    with open(path, 'w') as f: json.dump(d, f, indent=2)
 except OSError as e:
-    print(f"ERROR writing {sys.argv[1]}: {e}", file=sys.stderr)
+    print(f"ERROR writing {path}: {e}", file=sys.stderr)
     sys.exit(1)
 PYEOF
-        then
-            log "WARN: Failed to add claude-mux permissions to $settings_file"
-        fi
-    else
-        /usr/bin/python3 -c "
-import json, sys
-b = sys.argv[1]
-d = {'permissions': {'allow': ['Bash(claude-mux)', 'Bash(claude-mux *)', f'Bash({b})', f'Bash({b} *)']}}
-with open(sys.argv[2], 'w') as f: json.dump(d, f, indent=2)
-" "$CLAUDE_MUX_BIN" "$settings_file" 2>/dev/null
+    then
+        log "WARN: Failed to write claude-mux permissions to $settings_file"
     fi
 }
 
@@ -1701,7 +2320,7 @@ detect_github_ssh_accounts() {
 create_claude_session() {
     local session_name="$1"
     local working_dir="$2"
-    local mode_override="${3:-}"   # optional: permission mode override (or "dangerously-skip-permissions")
+    local mode_override="${3:-}"   # optional: permission mode override
 
     # Create multi-coder symlinks (AGENTS.md, GEMINI.md → CLAUDE.md) so other
     # AI CLI tools see the same project instructions. Idempotent and silent
@@ -1710,9 +2329,23 @@ create_claude_session() {
     setup_multi_coder_files "$working_dir"
 
     if "$TMUX_BIN" has-session -t "$session_name" 2>/dev/null; then
+        # Collision guard: refuse to touch sessions not created by claude-mux.
+        # Exception: unmanaged sessions with Claude running are claimed with a warning (v1.8 upgrade path).
+        if ! is_claude_mux_session "$session_name"; then
+            if claude_running_in_session "$session_name"; then
+                log "WARN: Claiming non-managed session '$session_name' — Claude is running; assuming v1.8 upgrade"
+            else
+                log "WARN: tmux session '$session_name' exists but is not claude-mux-managed — refusing to overwrite"
+                echo "WARN: tmux session '$session_name' is in use by something else." >&2
+                echo "      Resolve manually: 'tmux kill-session -t $session_name' if you want claude-mux to take over." >&2
+                return 1
+            fi
+        fi
         # Session exists — check if claude is still running inside it.
         # If the pane is at a shell prompt (claude exited), relaunch.
         if claude_running_in_session "$session_name"; then
+            # Mark as claude-mux-managed (idempotent — handles v1.8 upgrades)
+            [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" set-option -t "$session_name" @claude-mux-managed 1 2>/dev/null
             log "Session '$session_name' already running claude, skipping"
             return
         fi
@@ -1728,6 +2361,7 @@ create_claude_session() {
     fi
 
     apply_tmux_options "$session_name"
+    "$TMUX_BIN" set-option -t "$session_name" @claude-mux-managed 1 2>/dev/null
 
     # Build system prompt
     local tmux_prompt
@@ -1738,10 +2372,7 @@ create_claude_session() {
     # They are safe because mode_override is validated against a whitelist by all callers
     # (setmode dispatch at line ~2033, DEFAULT_PERMISSION_MODE at line ~427).
     local perm_flag_name perm_flag_value
-    if [[ "$mode_override" == "dangerously-skip-permissions" ]]; then
-        perm_flag_name="--dangerously-skip-permissions"
-        perm_flag_value=""
-    elif [[ -n "$mode_override" ]]; then
+    if [[ -n "$mode_override" ]]; then
         perm_flag_name="--permission-mode"
         perm_flag_value="$mode_override"
     else
@@ -1765,8 +2396,8 @@ create_claude_session() {
 trap 'rm -f "${launch_script}" "${prompt_file}"' EXIT
 export PATH="$(dirname "$CLAUDE_BIN"):\$PATH"
 _prompt=\$(cat '${prompt_file}')
-claude -c --remote-control ${perm_flag_name}${perm_flag_value:+ ${perm_flag_value}} --name '${session_name}' --append-system-prompt "\$_prompt" 2>/dev/null || \
-claude --remote-control ${perm_flag_name}${perm_flag_value:+ ${perm_flag_value}} --name '${session_name}' --append-system-prompt "\$_prompt"
+claude -c --remote-control ${perm_flag_name}${perm_flag_value:+ ${perm_flag_value}} --allow-dangerously-skip-permissions --name '${session_name}' --append-system-prompt "\$_prompt" 2>/dev/null || \
+claude --remote-control ${perm_flag_name}${perm_flag_value:+ ${perm_flag_value}} --allow-dangerously-skip-permissions --name '${session_name}' --append-system-prompt "\$_prompt"
 LAUNCH_EOF
     chmod +x "$launch_script"
 
@@ -1776,9 +2407,9 @@ LAUNCH_EOF
         return
     fi
 
-    # Wait for Claude to be ready (trust prompt or input prompt), then send "ready".
-    # Polls every 0.5s up to 10s instead of fixed sleeps. Auto-accepts the trust
-    # prompt if it appears (all managed directories are the user's own projects).
+    # Wait for Claude to be ready (trust prompt, bypassPermissions warning, or input
+    # prompt), then send "ready". Polls every 0.5s up to 10s. Auto-accepts the trust
+    # prompt and bypassPermissions warning (all managed dirs are the user's own projects).
     log "Waiting for Claude to start in '$session_name'..."
     local _poll=0
     local _ready=false
@@ -1790,7 +2421,17 @@ LAUNCH_EOF
         if echo "$_pane" | grep -q "Yes, I trust this folder"; then
             log "Auto-accepting trust prompt for '$session_name'"
             "$TMUX_BIN" send-keys -t "$session_name" Enter
-            # Wait a bit more for Claude to finish loading after trust accept
+            sleep 2
+            _ready=true
+            break
+        fi
+        # bypassPermissions warning: options are "No, exit" (selected) and "Yes, I accept".
+        # Must send Down to move to option 2, then wait 1s for UI to register, then Enter.
+        if echo "$_pane" | grep -q "Yes, I accept"; then
+            log "Auto-accepting bypassPermissions warning for '$session_name'"
+            "$TMUX_BIN" send-keys -t "$session_name" Down
+            sleep 1
+            "$TMUX_BIN" send-keys -t "$session_name" Enter
             sleep 2
             _ready=true
             break
@@ -1808,8 +2449,8 @@ LAUNCH_EOF
         "$TMUX_BIN" send-keys -t "$session_name" -l "ready" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session_name" Enter 2>/dev/null
     fi
 
-    # Home session is always protected
-    if [[ "$session_name" == "home" ]]; then
+    # Protect at launch if .claudemux-protected marker exists in working dir
+    if [[ -f "$working_dir/.claudemux-protected" ]]; then
         "$TMUX_BIN" set-option -t "$session_name" @claude-mux-protected 1 2>/dev/null
     fi
 
@@ -1877,11 +2518,12 @@ migrate_stray_sessions() {
 # ── Discover Claude projects ──────────────────────────────────────────────────
 # Finds all directories under BASE_DIR that contain a .claude/ subdirectory.
 # Skips directories whose name starts with '-' and directories containing
-# .ignore-claudemux. Hidden directories (starting with '.') are pruned
+# .claudemux-ignore. Hidden directories (starting with '.') are pruned
 # from the search tree.
 
 discover_projects() {
     PROJECT_DIRS=()
+    HIDDEN_PROJECT_DIRS=()
     [[ ! -d "$BASE_DIR" ]] && return
 
     while IFS= read -r claude_dir; do
@@ -1897,8 +2539,11 @@ discover_projects() {
         dir_name="$(basename "$project_dir")"
         [[ "$dir_name" == -* ]] && continue
 
-        # Skip if .ignore-claudemux exists
-        [[ -f "$project_dir/.ignore-claudemux" ]] && continue
+        # Hidden via .claudemux-ignore: separated into HIDDEN_PROJECT_DIRS
+        if [[ -f "$project_dir/.claudemux-ignore" ]]; then
+            HIDDEN_PROJECT_DIRS+=("$project_dir")
+            continue
+        fi
 
         PROJECT_DIRS+=("$project_dir")
     done < <(find "$BASE_DIR" -name ".*" -not -name ".claude" -prune -o -name "-*" -prune -o -name ".claude" -type d -print 2>/dev/null | sort)
@@ -1958,7 +2603,9 @@ start_sessions() {
 "
 
         setup_default_mode "$PROJECT_DIR"
-        setup_claude_mux_permissions "$PROJECT_DIR"
+        local _is_home_proj=false
+        [[ "$PROJECT_DIR" == "$BASE_DIR" ]] && _is_home_proj=true
+        setup_claude_mux_permissions "$PROJECT_DIR" "$_is_home_proj"
         create_claude_session "$session_name" "$PROJECT_DIR"
     done
 
@@ -1990,7 +2637,9 @@ launch_single_session() {
 
     detect_github_ssh_accounts
     setup_default_mode "$LAUNCH_DIR"
-    setup_claude_mux_permissions "$LAUNCH_DIR"
+    local _launch_is_home=false
+    [[ "$HOME_LAUNCH" == "true" || "$LAUNCH_DIR" == "$BASE_DIR" ]] && _launch_is_home=true
+    setup_claude_mux_permissions "$LAUNCH_DIR" "$_launch_is_home"
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log "Creating tmux session '$LAUNCH_SESSION_NAME' in $LAUNCH_DIR"
@@ -2001,8 +2650,13 @@ launch_single_session() {
     # If session already exists with Claude running, just attach
     if "$TMUX_BIN" has-session -t "$LAUNCH_SESSION_NAME" 2>/dev/null; then
         if claude_running_in_session "$LAUNCH_SESSION_NAME"; then
-            # Ensure home session is protected even if session existed before
-            if [[ "$HOME_LAUNCH" == "true" ]]; then
+            if ! is_claude_mux_session "$LAUNCH_SESSION_NAME"; then
+                log "WARN: Claiming non-managed session '$LAUNCH_SESSION_NAME' — Claude is running; assuming v1.8 upgrade"
+            fi
+            # Mark as claude-mux-managed (idempotent — handles v1.8 upgrades)
+            "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" @claude-mux-managed 1 2>/dev/null
+            # Re-apply protection if marker exists (handles in-place upgrade and idempotent --autolaunch)
+            if [[ -f "$LAUNCH_DIR/.claudemux-protected" ]]; then
                 "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" @claude-mux-protected 1 2>/dev/null
             fi
             if [[ "$NO_ATTACH" == "true" ]]; then
@@ -2013,7 +2667,14 @@ launch_single_session() {
             attach_to_session "$LAUNCH_SESSION_NAME"
             return
         fi
-        # Claude exited — kill old session, create fresh
+        # Claude not running — but is this our session? Refuse if not.
+        if ! is_claude_mux_session "$LAUNCH_SESSION_NAME"; then
+            log "WARN: tmux session '$LAUNCH_SESSION_NAME' exists but is not claude-mux-managed — refusing to overwrite"
+            echo "WARN: tmux session '$LAUNCH_SESSION_NAME' is in use by something else." >&2
+            echo "      Resolve manually: 'tmux kill-session -t $LAUNCH_SESSION_NAME' if you want claude-mux to take over." >&2
+            return 1
+        fi
+        # Claude exited from a session we own — kill, recreate
         log "Session '$LAUNCH_SESSION_NAME' exists but claude is not running — recreating"
         "$TMUX_BIN" kill-session -t "$LAUNCH_SESSION_NAME" 2>/dev/null
     fi
@@ -2046,8 +2707,8 @@ launch_single_session() {
 trap 'rm -f "${launch_script}" "${prompt_file}"' EXIT
 export PATH="$(dirname "$CLAUDE_BIN"):\$PATH"
 _prompt=\$(cat '${prompt_file}')
-claude -c --remote-control --permission-mode auto ${model_flag} --name '${LAUNCH_SESSION_NAME}' --append-system-prompt "\$_prompt" 2>/dev/null || \
-claude --remote-control --permission-mode auto ${model_flag} --name '${LAUNCH_SESSION_NAME}' --append-system-prompt "\$_prompt"
+claude -c --remote-control --permission-mode auto --allow-dangerously-skip-permissions ${model_flag} --name '${LAUNCH_SESSION_NAME}' --append-system-prompt "\$_prompt" 2>/dev/null || \
+claude --remote-control --permission-mode auto --allow-dangerously-skip-permissions ${model_flag} --name '${LAUNCH_SESSION_NAME}' --append-system-prompt "\$_prompt"
 LAUNCH_EOF
     chmod +x "$launch_script"
 
@@ -2055,11 +2716,12 @@ LAUNCH_EOF
     "$TMUX_BIN" new-session -d -s "$LAUNCH_SESSION_NAME" -c "$LAUNCH_DIR" "bash '${launch_script}'"
 
     apply_tmux_options "$LAUNCH_SESSION_NAME"
+    "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" @claude-mux-managed 1 2>/dev/null
 
-    # Home session is always protected
-    if [[ "$HOME_LAUNCH" == "true" ]]; then
+    # Protect at launch if .claudemux-protected marker exists in working dir
+    if [[ -f "$LAUNCH_DIR/.claudemux-protected" ]]; then
         "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" @claude-mux-protected 1 2>/dev/null
-        log "Session '$LAUNCH_SESSION_NAME' is protected"
+        log "Session '$LAUNCH_SESSION_NAME' is protected (marker: $LAUNCH_DIR/.claudemux-protected)"
     fi
 
     # Background: poll for Claude to be ready, then send "ready" message.
@@ -2072,6 +2734,13 @@ LAUNCH_EOF
             (( _poll++ ))
             _pane=$("$TMUX_BIN" capture-pane -t "$LAUNCH_SESSION_NAME" -p 2>/dev/null) || continue
             if echo "$_pane" | grep -q "Yes, I trust this folder"; then
+                "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Enter 2>/dev/null
+                sleep 2
+                break
+            fi
+            if echo "$_pane" | grep -q "Yes, I accept"; then
+                "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Down 2>/dev/null
+                sleep 1
                 "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Enter 2>/dev/null
                 sleep 2
                 break
@@ -2193,7 +2862,9 @@ create_new_project() {
     fi
 
     # Always set claude-mux permissions regardless of --no-permission-mode
-    setup_claude_mux_permissions "$NEW_PROJECT_DIR"
+    local _new_is_home=false
+    [[ "$NEW_PROJECT_DIR" == "$BASE_DIR" ]] && _new_is_home=true
+    setup_claude_mux_permissions "$NEW_PROJECT_DIR" "$_new_is_home"
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log "Dry run — skipping session creation and attach for '$NEW_SESSION_NAME'"
@@ -2216,6 +2887,13 @@ autolaunch_dispatch() {
     case "$LAUNCHAGENT_MODE" in
         none)
             log "LaunchAgent autolaunch: LAUNCHAGENT_MODE=none — exiting"
+            # Self-healing: if the plist is still installed with KeepAlive, unload it to
+            # stop recurring invocations. User can re-enable by running claude-mux --install.
+            local _plist="$HOME/Library/LaunchAgents/com.user.claude-mux.plist"
+            if [[ -f "$_plist" ]]; then
+                log "LAUNCHAGENT_MODE=none but plist still installed — unloading to stop recurring invocations"
+                launchctl unload "$_plist" 2>/dev/null || true
+            fi
             ;;
         home)
             log "LaunchAgent autolaunch: starting home session"
@@ -2276,6 +2954,11 @@ case "$COMMAND" in
     list)     status_claude_sessions; exit 0 ;;
     list-all) status_claude_sessions true; exit 0 ;;
     list-templates) list_templates; exit 0 ;;
+    hide)       hide_command "${HIDE_DIR:-}"; exit $? ;;
+    show)       show_command "${HIDE_DIR:-}"; exit $? ;;
+    protect)    protect_command "${PROTECT_DIR:-}"; exit $? ;;
+    unprotect)  unprotect_command "${PROTECT_DIR:-}"; exit $? ;;
+    delete)     delete_command "${DELETE_DIR:-}" "$FORCE" "${DELETE_YES:-false}"; exit $? ;;
     send)
         get_managed_session_names
         if ! is_managed_session "$SEND_SESSION"; then
@@ -2436,10 +3119,10 @@ case "$COMMAND" in
         ;;
     setmode)
         case "$SETMODE_VALUE" in
-            default|acceptEdits|plan|auto|bypassPermissions|dontAsk|dangerously-skip-permissions) ;;
+            default|acceptEdits|plan|auto|bypassPermissions|dontAsk) ;;
             *)
                 echo "ERROR: Invalid permission mode '$SETMODE_VALUE'" >&2
-                echo "Valid modes: default, acceptEdits, plan, auto, bypassPermissions, dontAsk, dangerously-skip-permissions" >&2
+                echo "Valid modes: default, acceptEdits, plan, auto, bypassPermissions, dontAsk (\"yolo\" is an alias for bypassPermissions)" >&2
                 exit 1
                 ;;
         esac
@@ -2467,7 +3150,36 @@ case "$COMMAND" in
                 continue
             fi
             if [[ "$DRY_RUN" == "true" ]]; then
-                log "Would restart session '$_sm' in $_sm_dir with mode '$SETMODE_VALUE'"
+                log "Would set session '$_sm' to mode '$SETMODE_VALUE'"
+            elif [[ "$SETMODE_VALUE" == "bypassPermissions" ]]; then
+                # bypassPermissions: navigate via Shift+Tab instead of restarting.
+                # Every session is launched with --allow-dangerously-skip-permissions,
+                # so bypassPermissions is always in the Shift+Tab cycle.
+                _sm_pane=$("$TMUX_BIN" capture-pane -t "$_sm" -p 2>/dev/null)
+                _sm_pane_tail=$(echo "$_sm_pane" | tail -4)
+                if echo "$_sm_pane_tail" | grep -q "bypass permissions on"; then
+                    log "Session '$_sm' is already in bypassPermissions"
+                else
+                    if echo "$_sm_pane_tail" | grep -q "plan mode on"; then
+                        _btab_count=1
+                    elif echo "$_sm_pane_tail" | grep -q "accept edits on"; then
+                        _btab_count=2
+                    else
+                        _btab_count=3
+                    fi
+                    log "Switching '$_sm' to bypassPermissions via $_btab_count Shift+Tab"
+                    for (( _i=0; _i<_btab_count; _i++ )); do
+                        "$TMUX_BIN" send-keys -t "$_sm" BTab
+                        sleep 0.3
+                    done
+                    sleep 0.5
+                    _sm_pane=$("$TMUX_BIN" capture-pane -t "$_sm" -p 2>/dev/null)
+                    if ! echo "$_sm_pane" | tail -4 | grep -q "bypass permissions on"; then
+                        log "WARN: bypassPermissions not confirmed for '$_sm', falling back to restart"
+                        shutdown_single_session "$_sm"
+                        create_claude_session "$_sm" "$_sm_dir" "$SETMODE_VALUE"
+                    fi
+                fi
             else
                 log "Restarting session '$_sm' in $_sm_dir with mode '$SETMODE_VALUE'"
                 shutdown_single_session "$_sm"
@@ -2480,5 +3192,9 @@ case "$COMMAND" in
             log "=== claude-mux setmode complete ==="
         fi
         exit $(( _setmode_errors > 0 ? 1 : 0 ))
+        ;;
+    getmode)
+        get_session_mode "$GETMODE_SESSION"
+        exit $?
         ;;
 esac

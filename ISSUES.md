@@ -37,6 +37,22 @@
 **Status:** Open - future improvement
 **Description:** `templates/` in the repo root should contain example CLAUDE.md templates (web, python, etc.) that `install.sh` optionally copies to `~/.claude-mux/templates/` during install. Currently users must create templates from scratch.
 
+### Code review deferred issues (v1.9.0)
+**Severity:** Low–Medium
+**Status:** Open — deferred from v1.9 code review
+**Description:** Items identified during v1.9 pre-release review, intentionally deferred:
+- **M3** `delete_command` mixes local `force` param with global `FORCE` mutation for `shutdown_single_session`. Works correctly today but fragile if a non-dispatch call path is added.
+- **M4** TOCTOU race in `move_to_trash`: two deletions at the same second produce a collision; `mv` fails with a clear error message. Use `$$` or a counter instead of a second-granularity timestamp.
+- **M7** Shift+Tab count in setmode doesn't document that `dontAsk` and "unknown" both fall into the 3-press default branch. Add a comment.
+- **M9** Startup polling loop breaks out after accepting a trust prompt without re-polling for a subsequent bypassPermissions warning. Affects first-run sessions in a new project directory with bypassPermissions mode — existing restart fallback covers it.
+- **L3** `ensure_gitignore_entry` uses `grep -xF` (literal), so `.claudemux-*` may be appended alongside individually-listed marker entries. Idempotency edge case, not a correctness bug.
+- **L4** `resolve_project_dir` returns unresolved relative path on `cd` failure, contradicting its contract. Callers catch it via `[[ ! -d ]]`.
+- **L5** `hide_command` dry-run exits before `ensure_gitignore_entry`, so the gitignore update step isn't shown in dry-run output.
+- **L6** `protect_command` sets the tmux option even when `already_protected=true`, but outputs "Already protected". Intentional for upgrade idempotency; needs a comment.
+- **L7** Redundant `${#HIDDEN_PROJECT_DIRS[@]+1}` guard alongside explicit `> 0` check — simplify.
+- **L8** Same as M9: sequential trust + bypass prompts not handled by the polling loop.
+- **L9** "Yes, I accept" bypassPermissions detection is fragile to Claude UI text changes. Use `grep -qi "yes.*accept"` for resilience.
+
 ### Submit to homebrew-core for brew.sh listing
 **Severity:** Low
 **Status:** Future - waiting on adoption

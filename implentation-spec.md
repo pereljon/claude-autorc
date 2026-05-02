@@ -35,12 +35,12 @@ Projects are discovered by the presence of a `.claude/` directory, at any depth 
 │   └── project-d/                 ← ✗ no .claude/ — not a project
 ├── deep/nested/project/           ← ✓ found at any depth
 │   └── .claude/
-└── ignored/                       ← ✗ excluded (.ignore-claudemux)
+└── ignored/                       ← ✗ excluded (.claudemux-ignore)
     ├── .claude/
-    └── .ignore-claudemux
+    └── .claudemux-ignore
 ```
 
-Exclusion rules: hidden directories (`.`-prefixed) are pruned from search, directories starting with `-` are skipped, directories containing `.ignore-claudemux` are skipped.
+Exclusion rules: hidden directories (`.`-prefixed) are pruned from search, directories starting with `-` are skipped, directories containing `.claudemux-ignore` are skipped. The legacy `.ignore-claudemux` filename is also respected for backwards compatibility.
 
 ## Deliverables
 
@@ -185,36 +185,37 @@ claude-mux version: <VERSION>
 ```
 The version line is always present. The update line is included only when `~/.claude-mux/.update-check` contains a version newer than the running version. The check date comes from the cache's `last_check` timestamp. Version context is built by `get_version_prompt_lines()`.
 
+**Reference lookups** — four lookup flags that Claude runs on demand rather than inlining:
+```
+claude-mux --guide          → conversational commands list (used for "help")
+claude-mux --commands       → full CLI reference
+claude-mux --config-help    → config options with defaults, types, descriptions
+claude-mux --list-templates → available CLAUDE.md templates
+```
+
 **Rules** — behavioral instructions:
 - Can send slash commands via `-s`; never tell the user otherwise
 - Always use `--no-attach` with `-d` and `-n`
-- `--shutdown` and `--restart` are safe from inside a session
+- `--shutdown` and `--restart` are safe from inside a session; do NOT add `--no-attach`
 - Home session is protected; `--shutdown home` requires `--force`
-- When user says "help", print the conversational commands list verbatim (text is inlined in the prompt via `$(guide)` expansion — no subprocess call)
+- Use claude-mux for ALL session management — never raw tmux/ls commands
+- When user says "help", run `claude-mux --guide` and print the output verbatim
 - When user says "status", report session name, current model, current permission mode, context estimate, then run `-l`
-- Trigger rules for each conversational phrase (list/start/stop/restart/switch/compact/clear/list templates/update) map to their corresponding claude-mux commands
+- Trigger rules for each conversational phrase (list/start/stop/restart/switch/compact/clear/list templates/update/hide/show/protect/unprotect/delete) map to their corresponding claude-mux commands
 - "update claude-mux": warn user that all sessions will restart, get confirmation, then run `--update` followed by `--restart`
 
-**Commands** — every claude-mux command with the absolute binary path:
+**Additional capabilities** — compressed feature list for capability discovery:
 ```
--s '<session>' '/command'       Send slash command to yourself (or any session if ALLOW_CROSS_SESSION_CONTROL=true)
--l                              List active sessions
--L                              List all projects
--d DIR --no-attach              Launch session in directory
--n DIR --no-attach              New project
--n DIR -p --no-attach           New project (create parents)
---template NAME                 CLAUDE.md template (with -n)
---list-templates                Show available templates
---shutdown SESSION...           Shut down sessions (omit to shut down all)
---shutdown SESSION --force      Shut down protected session
---restart SESSION...            Restart sessions (omit to restart all running)
---permission-mode MODE SESSION  Restart session with a different permission mode
-                                Modes: default, acceptEdits, plan, auto, bypassPermissions, dontAsk, dangerously-skip-permissions
-                                ("yolo" is an alias for dangerously-skip-permissions)
--a                              Start ALL sessions (use with caution)
---install                       Interactive setup: config + LaunchAgent
---update                        Update claude-mux to the latest version
---guide                         Show conversational commands for use within sessions
+- Attach interactively to a session (-t — user-only, never from inside a session)
+- Start all sessions at once (-a)
+- New project with a CLAUDE.md template (-n DIR --template NAME, -p for parent dirs)
+- Force-shutdown a protected session (--shutdown SESSION --force)
+- Hide/show projects (--hide / --show)
+- Protect/unprotect sessions (--protect / --unprotect)
+- Move a project to trash (--delete DIR — macOS; honors protection unless --force)
+- Show all config options (--config-help)
+- Run interactive setup or reconfigure (--install)
+- Update claude-mux (--update)
 ```
 
 If GitHub SSH accounts are found in `~/.ssh/config`, an additional line is appended listing the accounts and how to use their host aliases as git remotes.
@@ -342,6 +343,12 @@ In `--dry-run` mode, output goes to stdout only (not the log file).
     <key>RunAtLoad</key>
     <true/>
 
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
+
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
@@ -355,10 +362,58 @@ In `--dry-run` mode, output goes to stdout only (not the log file).
 ### Notes
 
 - `RunAtLoad: true` — executes at user login.
+- `KeepAlive: true` — LaunchAgent re-invokes `--autolaunch` whenever it exits. Combined with `ThrottleInterval: 60`, respawns happen at most once per minute.
+- `--autolaunch` is idempotent — if the home session is already running, the respawn is a no-op.
+- **KeepAlive and `--shutdown home --force`**: killing the home session directly will trigger a respawn within ~60s. To permanently stop the home session, disable the LaunchAgent: `claude-mux --install --launchagent-mode none`.
 - 45-second startup delay in the script allows networking and Homebrew services to initialize.
 - `~` does NOT expand in `ProgramArguments` — use `bash -c 'exec "$HOME/..."'` so bash expands `$HOME` at runtime. No hardcoded username needed.
 - stdout/stderr are not redirected to files. LaunchAgent output goes to the macOS unified log. Use Console.app or `log show` for low-level LaunchAgent debugging.
 - LaunchAgent runs in the user's login session, inheriting `$USER` and `$HOME`.
+
+## Project Markers
+
+Per-project state lives in marker files at the project root, not in central config. This is a deliberate design choice: state follows the folder across renames, moves, and machine syncs; it's discoverable from `ls -la`; and one gitignore pattern covers all markers.
+
+| Marker | Meaning | Created by |
+|--------|---------|------------|
+| `.claudemux-protected` | Session is protected at launch. `--shutdown` requires `--force`. | `claude-mux --protect` or `claude-mux --install` (for `$BASE_DIR`) |
+| `.claudemux-ignore` | Project is hidden from `claude-mux -L` listings and `discover_projects()`. | `claude-mux --hide` |
+
+**Conventions:**
+- Boolean flags: empty file at `.claudemux-<name>`, presence = on.
+- Richer state (future): JSON file at `.claudemux-<name>.json`.
+- Always auto-gitignored via `ensure_gitignore_entry()` when created in a git-tracked project.
+- Legacy `.ignore-claudemux` is still recognized by `discover_projects()` but `--hide` creates `.claudemux-ignore`.
+
+**When NOT to use markers:**
+- User-global preferences → `~/.claude-mux/config`
+- Session-runtime state → tmux user options (e.g. `@claude-mux-managed`, `@claude-mux-protected`)
+- Markers are for state that should travel with the project folder.
+
+### ensure_gitignore_entry(dir)
+
+If `$dir/.git` exists, appends `.claudemux-*` to `$dir/.gitignore` (idempotent — checks for existing entry before appending). Called automatically when `--hide` or `--protect` creates a marker.
+
+### is_claude_mux_session(session_name)
+
+Returns true if the tmux session has the user option `@claude-mux-managed = 1`. This option is set at every session-creation site (`create_claude_session`, `launch_single_session`). Used for collision detection: if a session name is taken by a non-managed session, claude-mux refuses to overwrite it and logs a warning.
+
+### move_to_trash(path)
+
+macOS-only. Moves `$path` to `~/.Trash/`. On name collision, appends a timestamp suffix (`-YYYYMMDD-HHMMSS`). Refuses if the path is outside `$HOME` (different filesystem, `mv` would not be atomic). Called by `delete_command()`.
+
+### delete_command(arg, force, yes)
+
+Pre-flight checks:
+1. Path must be under `$HOME` (refuse with clear error otherwise)
+2. Path must not be `$HOME` or `$BASE_DIR`
+3. Platform must be macOS (Darwin)
+4. If `.claudemux-protected` exists, require `--force` to proceed
+
+Then:
+- If a claude-mux session exists for the project, shuts it down (with `FORCE=true`)
+- Confirms via TTY prompt unless `--yes` / `-y` is set (or the chat confirmation exchange replaces the TTY prompt)
+- Calls `move_to_trash()`
 
 ## Edge Cases
 
@@ -372,7 +427,7 @@ In `--dry-run` mode, output goes to stdout only (not the log file).
 | BASE_DIR does not exist | Created automatically (dry-run: exit cleanly with warning) |
 | Folder name starts with `-` | Excluded from discovery |
 | Folder name starts with `.` | Excluded from discovery (hidden directories pruned) |
-| `.ignore-claudemux` present | Project excluded from discovery |
+| `.claudemux-ignore` present (or legacy `.ignore-claudemux`) | Project excluded from discovery |
 | Folder name contains spaces or special chars | Session name sanitized (spaces→hyphens, specials stripped); original path used as working dir |
 | Folder name sanitizes to empty string (e.g. `*`) | Logged as warning, skipped |
 | Script re-run after adding new project | Creates session for new folder, skips existing sessions |

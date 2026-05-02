@@ -82,7 +82,7 @@ Claude: 전체 대화형 명령 목록을 출력합니다
 
 홈 세션은 베이스 디렉터리(`~/Claude` 기본값)에 있는 범용 세션입니다. `LAUNCHAGENT_MODE=home`이면 로그인 시 자동으로 시작되어 휴대폰에서 항상 준비된 Claude 세션을 제공합니다. 프로젝트별 세션을 먼저 시작하지 않아도 다른 모든 세션을 관리할 수 있습니다.
 
-홈 세션은 항상 **보호** 상태입니다 - `--shutdown home`은 `--force` 없이는 중지를 거부합니다. 보호된 세션은 상태 열에 `protected`로 표시됩니다. 현재 세션은 이름 열에서 `>`로 표시됩니다.
+홈 세션은 기본적으로 **보호** 상태입니다 - `--shutdown home`은 `--force` 없이는 중지를 거부합니다. 보호는 `$BASE_DIR`의 `.claudemux-protected` 마커 파일로 관리되며, `claude-mux --install`이 생성합니다. 보호된 세션은 상태 열에 `protected`로 표시됩니다. 현재 세션은 이름 열에서 `>`로 표시됩니다.
 
 ## 동작 방식
 
@@ -159,13 +159,33 @@ LaunchAgent는 시스템 서비스 초기화를 위해 45초의 시작 지연을
 | 상태 | 의미 |
 |--------|---------|
 | `running` | tmux 세션이 존재하고 Claude가 실행 중임 |
-| `protected` | `running`과 동일하지만 세션이 보호됨 — `--shutdown`으로 중지하려면 `--force`가 필요. 홈 세션은 항상 보호됩니다. |
+| `protected` | `running`과 동일하지만 세션이 보호됨 — `--shutdown`으로 중지하려면 `--force`가 필요 |
 | `stopped` | tmux 세션은 존재하지만 Claude가 종료됨 |
 | `idle` | `BASE_DIR` 아래에 `.claude/` 프로젝트가 존재하지만 claude-mux tmux 세션이 실행되지 않음 (`-L`에서만 표시) |
 
 세션 이름의 `>` 접두사(예: `> home`)는 list 명령을 실행한 세션을 나타냅니다.
 
 이미 실행 중인 세션이 있는 디렉터리에서 `claude-mux`를 실행하면 해당 세션에 연결됩니다. 여러 터미널이 같은 세션에 연결할 수 있습니다(표준 tmux 동작).
+
+## 프로젝트 마커
+
+프로젝트별 상태는 중앙 설정이 아니라 프로젝트 루트의 마커 파일에 저장됩니다. 마커는 `.claudemux-` 접두사를 사용하며, git으로 추적되는 프로젝트에서 생성 시 자동으로 `.gitignore`에 추가됩니다.
+
+| 마커 | 의미 | CLI |
+|------|------|-----|
+| `.claudemux-protected` | 시작 시 세션 보호 — `--shutdown`에 `--force` 필요 | `--protect` / `--unprotect` |
+| `.claudemux-ignore` | `claude-mux -L` 목록에서 프로젝트 숨김 | `--hide` / `--show` |
+
+```bash
+claude-mux --hide                    # 현재 프로젝트를 -L 목록에서 숨기기
+claude-mux --show                    # 현재 프로젝트 숨김 해제
+claude-mux --protect                 # 이 세션을 실수로 종료되지 않도록 보호
+claude-mux --unprotect               # 보호 해제
+claude-mux -L --hidden               # 숨겨진 프로젝트만 목록 표시
+claude-mux --delete ~/projects/old   # 프로젝트 폴더를 시스템 휴지통으로 이동 (macOS)
+```
+
+마커는 프로젝트 폴더를 이름 변경하거나 이동해도 따라갑니다. 단일 `.gitignore` 패턴(`.claudemux-*`)으로 현재 및 향후 모든 마커를 처리할 수 있습니다.
 
 ## 구성
 
@@ -218,9 +238,9 @@ LaunchAgent는 시스템 서비스 초기화를 위해 45초의 시작 지연을
 │   └── project-d/          # ✗ .claude/ 없음 - Claude 프로젝트 아님
 ├── deep/nested/project-e/  # ✓ .claude/ 있음 - 어떤 깊이에서든 발견됨
 │   └── .claude/
-└── ignored-project/        # ✗ 제외 (.ignore-claudemux)
+└── ignored-project/        # ✗ 제외 (.claudemux-ignore)
     ├── .claude/
-    └── .ignore-claudemux
+    └── .claudemux-ignore
 ```
 
 세션 이름은 디렉터리 이름에서 파생됩니다: 공백은 하이픈이 되고, 영숫자가 아닌 문자(하이픈 제외)는 치환되며, 앞뒤 하이픈은 제거됩니다. 이름이 정제 후 비게 되는 디렉터리는 로그 경고와 함께 건너뜁니다.
@@ -313,6 +333,7 @@ claude-mux -n ~/app --no-multi-coder      # AGENTS.md/GEMINI.md 심볼릭 링크
 # 세션 관리
 claude-mux -l                    # 상태별 세션 목록 (active, running, stopped)
 claude-mux -L                    # 모든 프로젝트 목록 (active + idle)
+claude-mux -L --hidden           # 숨겨진 프로젝트만 목록 표시
 claude-mux -s my-app '/model sonnet'      # 세션에 슬래시 명령 전송
 claude-mux --shutdown my-app              # 특정 세션 종료
 claude-mux --shutdown                     # 관리 중인 모든 세션 종료
@@ -322,7 +343,18 @@ claude-mux --restart                     # 실행 중인 모든 세션 재시작
 claude-mux --permission-mode plan my-app  # plan 모드로 세션 재시작
 claude-mux -a                    # BASE_DIR 아래 모든 관리 세션 시작
 
+# 프로젝트 마커
+claude-mux --hide                    # 현재 프로젝트를 -L 목록에서 숨기기
+claude-mux --hide ~/projects/old     # 특정 프로젝트 숨기기
+claude-mux --show                    # 현재 프로젝트 숨김 해제
+claude-mux --protect                 # 이 세션을 실수로 종료되지 않도록 보호
+claude-mux --unprotect               # 보호 해제
+claude-mux --delete ~/projects/old           # 프로젝트 폴더를 시스템 휴지통으로 이동 (macOS)
+claude-mux --delete ~/projects/old --yes     # 동일, 확인 프롬프트 건너뛰기
+
 # 기타
+claude-mux --commands            # 전체 CLI 참조 표시
+claude-mux --config-help         # 기본값 및 설명과 함께 모든 설정 옵션 표시
 claude-mux --list-templates      # 사용 가능한 CLAUDE.md 템플릿 표시
 claude-mux --guide               # 세션 내에서 사용 가능한 대화형 명령 표시
 claude-mux --install             # 대화형 설정: config + LaunchAgent

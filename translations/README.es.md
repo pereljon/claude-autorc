@@ -82,7 +82,7 @@ Escribe `help` dentro de cualquier sesión para ver la lista completa de comando
 
 La sesión principal es una sesión de propósito general que vive en tu directorio base (`~/Claude` por defecto). Se lanza automáticamente al hacer login cuando `LAUNCHAGENT_MODE=home`, dándote una sesión de Claude siempre lista y accesible desde tu teléfono. Úsala para gestionar todas tus otras sesiones sin necesidad de lanzar sesiones específicas por proyecto.
 
-La sesión principal siempre está **protegida**: `--shutdown home` se niega a detenerla sin `--force`. Las sesiones protegidas muestran `protected` en la columna de estado; la sesión activa se marca con `>` en la columna de nombre.
+La sesión principal está **protegida** por defecto: `--shutdown home` se niega a detenerla sin `--force`. La protección está activada por el marcador `.claudemux-protected` en `$BASE_DIR`, creado por `claude-mux --install`. Las sesiones protegidas muestran `protected` en la columna de estado; la sesión activa se marca con `>` en la columna de nombre.
 
 ## Qué hace
 
@@ -159,13 +159,33 @@ El LaunchAgent ejecuta `claude-mux --autolaunch` al hacer login con un retraso d
 | Estado | Significado |
 |--------|-------------|
 | `running` | la sesión tmux existe y Claude está ejecutándose |
-| `protected` | igual que `running`, pero la sesión está protegida — `--shutdown` necesita `--force` para detenerla. La sesión principal siempre está protegida. |
+| `protected` | igual que `running`, pero la sesión está protegida — `--shutdown` necesita `--force` para detenerla |
 | `stopped` | la sesión tmux existe pero Claude ha terminado |
 | `idle` | existe un proyecto `.claude/` bajo `BASE_DIR` pero no tiene sesión tmux de claude-mux en ejecución (se muestra solo con `-L`) |
 
 Un prefijo `>` en el nombre de la sesión (p. ej. `> home`) marca la sesión que ejecutó el comando de lista.
 
 Ejecutar `claude-mux` en un directorio que ya tiene una sesión en ejecución se conecta a ella. Múltiples terminales pueden conectarse a la misma sesión (comportamiento estándar de tmux).
+
+## Marcadores de proyecto
+
+El estado por proyecto se almacena en archivos marcadores en la raíz del proyecto, no en una configuración central. Los marcadores usan el prefijo `.claudemux-` y se añaden automáticamente al `.gitignore` cuando se crean en un proyecto con seguimiento git.
+
+| Marcador | Significado | CLI |
+|----------|-------------|-----|
+| `.claudemux-protected` | La sesión queda protegida al arrancar — `--shutdown` requiere `--force` | `--protect` / `--unprotect` |
+| `.claudemux-ignore` | El proyecto se oculta de los listados de `claude-mux -L` | `--hide` / `--show` |
+
+```bash
+claude-mux --hide                    # ocultar el proyecto actual de los listados -L
+claude-mux --show                    # mostrar de nuevo el proyecto actual
+claude-mux --protect                 # proteger esta sesión de apagados accidentales
+claude-mux --unprotect               # eliminar la protección
+claude-mux -L --hidden               # listar solo los proyectos ocultos
+claude-mux --delete ~/proyectos/antiguo   # mover la carpeta del proyecto a la papelera del sistema (macOS)
+```
+
+Los marcadores viajan con la carpeta del proyecto cuando se renombra o mueve. Un único patrón en `.gitignore` (`.claudemux-*`) cubre todos los marcadores actuales y futuros.
 
 ## Configuración
 
@@ -218,9 +238,9 @@ Los proyectos se descubren por la presencia de un directorio `.claude/`, a cualq
 │   └── project-d/          # ✗ sin .claude/ - no es un proyecto de Claude
 ├── deep/nested/project-e/  # ✓ tiene .claude/ - encontrado a cualquier profundidad
 │   └── .claude/
-└── ignored-project/        # ✗ excluido (.ignore-claudemux)
+└── ignored-project/        # ✗ excluido (.claudemux-ignore)
     ├── .claude/
-    └── .ignore-claudemux
+    └── .claudemux-ignore
 ```
 
 Los nombres de las sesiones se derivan de los nombres de los directorios: los espacios se vuelven guiones, los caracteres no alfanuméricos (excepto los guiones) se reemplazan, y los guiones iniciales/finales se eliminan. Los directorios cuyo nombre, al sanearse, queda vacío se omiten con una advertencia en el log.
@@ -313,6 +333,7 @@ claude-mux -n ~/app --no-multi-coder      # nuevo proyecto sin enlaces simbólic
 # Gestión de sesiones
 claude-mux -l                    # listar sesiones por estado (active, running, stopped)
 claude-mux -L                    # listar todos los proyectos (activos + inactivos)
+claude-mux -L --hidden           # listar solo los proyectos ocultos
 claude-mux -s my-app '/model sonnet'      # enviar un slash command a una sesión
 claude-mux --shutdown my-app              # apagar una sesión específica
 claude-mux --shutdown                     # apagar todas las sesiones gestionadas
@@ -322,7 +343,18 @@ claude-mux --restart                     # reiniciar todas las sesiones en ejecu
 claude-mux --permission-mode plan my-app  # reiniciar la sesión en modo plan
 claude-mux -a                    # iniciar todas las sesiones gestionadas bajo BASE_DIR
 
+# Marcadores de proyecto
+claude-mux --hide                    # ocultar el proyecto actual de los listados -L
+claude-mux --hide ~/proyectos/antiguo     # ocultar un proyecto específico
+claude-mux --show                    # mostrar de nuevo el proyecto actual
+claude-mux --protect                 # proteger esta sesión de apagados accidentales
+claude-mux --unprotect               # eliminar la protección
+claude-mux --delete ~/proyectos/antiguo           # mover la carpeta del proyecto a la papelera del sistema (macOS)
+claude-mux --delete ~/proyectos/antiguo --yes     # lo mismo, sin confirmación
+
 # Otros
+claude-mux --commands            # mostrar la referencia CLI completa
+claude-mux --config-help         # mostrar todas las opciones de configuración con valores predeterminados y descripciones
 claude-mux --list-templates      # mostrar plantillas CLAUDE.md disponibles
 claude-mux --guide               # mostrar comandos conversacionales para usar dentro de sesiones
 claude-mux --install          # configuración interactiva: config + LaunchAgent

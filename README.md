@@ -82,7 +82,7 @@ Type `help` inside any session to see the full command list.
 
 The home session is a general-purpose session that lives in your base directory (`~/Claude` by default). It launches automatically at login when `LAUNCHAGENT_MODE=home`, giving you one always-ready Claude session accessible from your phone. Use it to manage all your other sessions without launching project-specific ones first.
 
-The home session is always **protected** — `--shutdown home` refuses to stop it without `--force`. Protected sessions show `protected` in the status column; the calling session is marked with `>` in the name column.
+The home session is **protected** by default — `--shutdown home` refuses to stop it without `--force`. Protection is driven by the `.claudemux-protected` marker in `$BASE_DIR`, created by `claude-mux --install`. Protected sessions show `protected` in the status column; the calling session is marked with `>` in the name column.
 
 ## What It Does
 
@@ -159,13 +159,33 @@ The LaunchAgent runs `claude-mux --autolaunch` at login with a 45-second startup
 | Status | Meaning |
 |--------|---------|
 | `running` | tmux session exists and Claude is running |
-| `protected` | same as `running`, but the session is protected — `--shutdown` requires `--force` to stop it. The home session is always protected. |
+| `protected` | same as `running`, but the session is protected — `--shutdown` requires `--force` to stop it |
 | `stopped` | tmux session exists but Claude has exited |
 | `idle` | A `.claude/` project exists under `BASE_DIR` but has no claude-mux tmux session running (shown only with `-L`) |
 
 A `>` prefix on the session name (e.g. `> home`) marks the session that ran the list command.
 
 Running `claude-mux` in a directory that already has a running session attaches to it. Multiple terminals can attach to the same session (standard tmux behavior).
+
+## Project Markers
+
+Per-project state lives in marker files at the project root, not in central config. Markers use the `.claudemux-` prefix and are automatically added to `.gitignore` when created in a git-tracked project.
+
+| Marker | Meaning | CLI |
+|--------|---------|-----|
+| `.claudemux-protected` | Session is protected at launch — `--shutdown` requires `--force` | `--protect` / `--unprotect` |
+| `.claudemux-ignore` | Project is hidden from `claude-mux -L` listings | `--hide` / `--show` |
+
+```bash
+claude-mux --hide                    # hide current project from -L listings
+claude-mux --show                    # unhide current project
+claude-mux --protect                 # protect this session from accidental shutdown
+claude-mux --unprotect               # remove protection
+claude-mux -L --hidden               # list only hidden projects
+claude-mux --delete ~/projects/old   # move project folder to system trash (macOS)
+```
+
+Markers travel with the project folder across renames and moves. A single `.gitignore` pattern (`.claudemux-*`) covers all current and future markers.
 
 ## Configuration
 
@@ -218,9 +238,9 @@ Projects are discovered by the presence of a `.claude/` directory, at any depth:
 │   └── project-d/          # ✗ no .claude/ - not a Claude project
 ├── deep/nested/project-e/  # ✓ has .claude/ - found at any depth
 │   └── .claude/
-└── ignored-project/        # ✗ excluded (.ignore-claudemux)
+└── ignored-project/        # ✗ excluded (.claudemux-ignore)
     ├── .claude/
-    └── .ignore-claudemux
+    └── .claudemux-ignore
 ```
 
 Session names are derived from directory names: spaces become hyphens, non-alphanumeric characters (except hyphens) are replaced, and leading/trailing hyphens are stripped. Directories whose name sanitizes to empty are skipped with a log warning.
@@ -230,34 +250,33 @@ Session names are derived from directory names: spaces become hyphens, non-alpha
 Each Claude session is launched with `--append-system-prompt` containing context about its environment:
 
 ```
-You are running inside tmux session '<session-name>'.
-claude-mux path: /path/to/claude-mux
+You are running inside tmux session '<session-name>'. claude-mux path: /path/to/claude-mux
 claude-mux version: <version>
 [Update available: <new-version> (found <date>). Tell the user and suggest they say "update claude-mux" to update.]
 
+Reference lookups (run on demand if you need information not covered by trigger rules):
+  claude-mux --guide          → conversational commands list (used for "help")
+  claude-mux --commands       → full CLI reference
+  claude-mux --config-help    → config options with defaults, types, descriptions
+  claude-mux --list-templates → available CLAUDE.md templates
+
 Rules:
-- You CAN send slash commands (/model, /compact, /clear, etc.) to this session
-  via the -s command. Never tell the user you cannot change models or run slash
-  commands.
+- You CAN send slash commands (/model, /compact, /clear, etc.) to this session via the -s command.
 - Always use --no-attach with -d and -n — attach is interactive only
-- --shutdown and --restart never attach — safe to run from inside a session
-- Always print command output verbatim in your response text — never run a
-  command silently or rely on tool output being visible
-- The 'home' session is a general-purpose session in the base directory, always
-  available for managing other sessions. It is protected (* in status):
-  --shutdown requires --force, but --restart bypasses protection (it relaunches,
-  not permanently kills).
-- Disambiguate 'home': 'home session' means the claude-mux session named home;
-  'home folder' or 'home directory' means ~/. If context is ambiguous, ask.
-- When asked to shut down sessions, run the command directly — protected sessions
-  are skipped automatically, do not ask for confirmation
+- --shutdown and --restart never attach — safe to run from inside a session; do NOT add --no-attach to these commands
+- Always print command output verbatim in your response text — if a command fails, report the error
+- When command output contains <assistant-must-display> tags, include the COMPLETE content verbatim
+- The 'home' session is the always-available session in the base directory. It is protected (shows 'protected' in status): --shutdown requires --force, but --restart bypasses protection. Protection is driven by the .claudemux-protected marker.
+- Disambiguate 'home': 'home session' means the claude-mux session named home; 'home folder' means ~/
+- When asked to shut down sessions, run the command directly — protected sessions are skipped automatically
+- Use claude-mux for ALL session management. Never use raw tmux, ls, or other shell commands for session management.
+- Don't guess at claude-mux flags. If you need information not in the trigger rules, run the relevant lookup.
 - When user says: ready — respond with "Ready." on one line. Nothing else.
-  Sent automatically when a session starts or restarts.
-- When user says: help — print the conversational commands list verbatim
-- When user says: status — report session name, current model, current permission
-  mode, context usage estimate, then run claude-mux -l and include the results
+- When user says: help — run claude-mux --guide and print the output verbatim
+- When user says: status — report session name, model, permission mode, context estimate, then run claude-mux -l
 - When user says: list active sessions — run claude-mux -l
 - When user says: list all sessions — run claude-mux -L
+- When user says: list hidden projects — run claude-mux -L --hidden
 - When user says: start session SESSION — run claude-mux -d SESSION --no-attach
 - When user says: stop this session / stop session NAME — run claude-mux --shutdown
 - When user says: stop all sessions — run claude-mux --shutdown
@@ -267,32 +286,33 @@ Rules:
 - When user says: switch this session to MODE mode / switch session NAME to MODE mode
 - When user says: switch this session to MODEL model / switch session NAME to MODEL model
 - When user says: compact/clear this session / compact/clear session NAME
+- When user says: update claude-mux — warn sessions will restart, get confirmation, run --update then --restart
+- When user says: hide this project / hide PROJECT — run claude-mux --hide
+- When user says: show this project / show PROJECT / unhide PROJECT — run claude-mux --show
+- When user says: protect this session / protect SESSION — run claude-mux --protect
+- When user says: unprotect this session / unprotect SESSION — run claude-mux --unprotect
+- When user says: is this hidden / is this protected — check for .claudemux-ignore or .claudemux-protected
+- When user says: delete this project / delete PROJECT — confirm in chat first, then run claude-mux --delete DIR --yes
 - When user says: list templates — run claude-mux --list-templates
-- When user says: update claude-mux — warns that all sessions will restart, gets confirmation, then runs --update and --restart
+- These trigger phrases work in any language.
 
-Commands:
-  -s '<session-name>' '/command'  Send slash command to yourself
-  -l                          List active sessions
-  -L                          List all projects
-  -d DIR --no-attach          Launch session in directory
-  -n DIR --no-attach          New project
-  -n DIR -p --no-attach       New project (create parents)
-  --template NAME             CLAUDE.md template (with -n)
-  --list-templates            Show available templates
-  --shutdown SESSION...       Shut down sessions (omit SESSION to shut down all)
-  --shutdown SESSION --force  Shut down protected session
-  --restart SESSION...        Restart sessions (omit SESSION to restart all running)
-  --permission-mode MODE SESSION  Restart session with a different permission mode
-                              Modes: default, acceptEdits, plan, auto, bypassPermissions, dontAsk, dangerously-skip-permissions
-                              ("yolo" is an alias for dangerously-skip-permissions)
-  -a                          Start ALL sessions (use with caution)
-  --install                   Interactive setup: config + LaunchAgent
-  --update                    Update claude-mux to the latest version
+Additional capabilities (run claude-mux --commands for full syntax):
+  - Attach interactively to a session (-t — user-only, never from inside a session)
+  - Start all sessions at once (-a)
+  - New project with a CLAUDE.md template (-n DIR --template NAME, -p for parent dirs)
+  - Force-shutdown a protected session (--shutdown SESSION --force)
+  - Hide/show projects (--hide / --show)
+  - Protect/unprotect sessions (--protect / --unprotect)
+  - Move a project to trash (--delete DIR — macOS; honors protection unless --force)
+  - Show all config options (--config-help)
+  - Run interactive setup or reconfigure (--install)
+  - Update claude-mux (--update)
 
+Self-targeting send: claude-mux -s '<session-name>' '/command' sends slash commands to yourself.
 GitHub SSH accounts configured in ~/.ssh/config: <accounts>.
 ```
 
-When `ALLOW_CROSS_SESSION_CONTROL=true`, the send command changes to allow targeting any session, not just itself. The path is the absolute path to the script at launch time, so sessions don't depend on `PATH`.
+The home session receives additional context: a description of its role, plus self-management triggers for reading/editing config and templates. When `ALLOW_CROSS_SESSION_CONTROL=true`, the send command can target any session, not just itself. The path is the absolute path to the script at launch time, so sessions don't depend on `PATH`.
 
 ## CLI Reference
 
@@ -314,6 +334,7 @@ claude-mux -n ~/app --no-multi-coder      # new project without AGENTS.md/GEMINI
 # Session management
 claude-mux -l                    # list sessions by status (active, running, stopped)
 claude-mux -L                    # list all projects (active + idle)
+claude-mux -L --hidden           # list only hidden projects
 claude-mux -s my-app '/model sonnet'      # send a slash command to a session
 claude-mux --shutdown my-app              # shut down a specific session
 claude-mux --shutdown                     # shut down all managed sessions
@@ -323,9 +344,20 @@ claude-mux --restart                     # restart all running sessions
 claude-mux --permission-mode plan my-app  # restart session with plan mode
 claude-mux -a                    # start all managed sessions under BASE_DIR
 
+# Project markers
+claude-mux --hide                # hide current project from -L listings
+claude-mux --hide ~/projects/old # hide a specific project
+claude-mux --show                # unhide current project
+claude-mux --protect             # protect this session from accidental shutdown
+claude-mux --unprotect           # remove protection
+claude-mux --delete ~/projects/old       # move project folder to system trash (macOS)
+claude-mux --delete ~/projects/old --yes # same, skip confirmation prompt
+
 # Other
 claude-mux --list-templates      # show available CLAUDE.md templates
 claude-mux --guide               # show conversational commands for use within sessions
+claude-mux --commands            # show full CLI reference
+claude-mux --config-help         # show all config options with defaults and descriptions
 claude-mux --install             # interactive setup: config + LaunchAgent
 claude-mux --update              # update to the latest version
 claude-mux --dry-run             # preview actions without executing

@@ -4,6 +4,36 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.9.0] — 2026-05-01
+
+### Added
+- **LaunchAgent KeepAlive**: home session is now resilient to crashes, manual shutdowns, and sleep/wake disruption. If home dies, the LaunchAgent relaunches it within ~60 seconds via the idempotent `--autolaunch` path. Note: `--shutdown home --force` will also be reversed by the LaunchAgent. To disable permanently: `claude-mux --install --launchagent-mode none`.
+- **Per-project marker files** using the `.claudemux-*` naming convention. State follows the project folder across renames, moves, and syncs. Markers are auto-added to `.gitignore` when created in a git-tracked project.
+- **`.claudemux-protected`** — session protected at launch. Created by default in `$BASE_DIR` during `claude-mux --install`.
+- **`.claudemux-ignore`** — project hidden from `claude-mux -L` listings.
+- **`--hide` / `--show`**: write or remove `.claudemux-ignore` for a project. Defaults to current directory.
+- **`--protect` / `--unprotect`**: write or remove `.claudemux-protected` and toggle the runtime tmux marker on running sessions.
+- **`--delete DIR`**: trash-safe project deletion (macOS only). Moves the project folder to `~/.Trash/` — never `rm -rf`. Recoverable via Finder. Requires `--yes` or interactive confirmation. Honors protection (requires `--force` to override). Refuses paths outside `$HOME`.
+- **`-L --hidden`** / **`-L --include-hidden`**: list only hidden projects, or list all projects including hidden ones.
+- **`--config-help`**: prints all valid config options with defaults, types, and descriptions.
+- **`--commands`**: prints the full CLI reference. Replaces the inline Commands block in the session injection.
+- **Home session permissions for `~/.claude-mux/**`**: home session can now read/edit/write its own config and templates without permission prompts.
+- **Conversational triggers**: hide/show/protect/unprotect/delete project; in home session: show/set config, list/add/edit/delete templates.
+- **Session ownership marker** (`@claude-mux-managed = 1`): tmux user option set on every session created by claude-mux. Used to detect collision with user-created tmux sessions that share a name.
+- **Collision detection**: if a session name already exists but was not created by claude-mux, `--autolaunch` refuses to overwrite it and logs a warning.
+- **`bypassPermissions` / `yolo` mode** (formerly broken): switching a session to yolo/bypassPermissions now works without hanging. Every session launches with `--allow-dangerously-skip-permissions`, so bypassPermissions is always in the Shift+Tab cycle. The startup polling loop now detects and auto-accepts the confirmation prompt. Subsequent switches use Shift+Tab navigation — no restart needed.
+- **`--get-mode [SESSION]`**: prints the current permission mode of a session (`bypassPermissions`, `acceptEdits`, `plan`, `default`, or `unknown`). Defaults to current session when called from inside a tmux session. Mode is detected from the last few lines of pane content.
+
+### Changed
+- **`.ignore-claudemux` renamed to `.claudemux-ignore`**. No automatic migration. Users with the old file should rename:
+  ```
+  mv .ignore-claudemux .claudemux-ignore
+  ```
+- **Home session protection** is no longer hardcoded by session name. It is now driven by `$BASE_DIR/.claudemux-protected`, which `claude-mux --install` creates by default. Users can opt out by deleting the marker.
+- **Injection prompt slimmed**: removed inline guide expansion and full Commands block. Replaced with a Reference lookups meta-block (`claude-mux --guide`, `--commands`, `--config-help`, `--list-templates`) and a compressed feature list. Saves ~800 tokens per session.
+- **`--force` validation** extended: now also required with `--delete` (in addition to `--shutdown`) to override session protection.
+- **`setup_claude_mux_permissions()`** now adds `~/.claude-mux/**` access rules and `additionalDirectories` entry for the home session's project.
+
 ## [1.8.1] — 2026-04-28
 
 ### Added
@@ -218,7 +248,9 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 - User config at `~/.claude-autorc` (later `~/.claude-mux/config`).
 - Logging to `~/Library/Logs/claude-autorc.log` (later `claude-mux.log`).
 
-[Unreleased]: https://github.com/pereljon/claude-mux/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/pereljon/claude-mux/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/pereljon/claude-mux/compare/v1.8.1...v1.9.0
+[1.8.1]: https://github.com/pereljon/claude-mux/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/pereljon/claude-mux/compare/v1.7.4...v1.8.0
 [1.7.4]: https://github.com/pereljon/claude-mux/compare/v1.7.3...v1.7.4
 [1.7.3]: https://github.com/pereljon/claude-mux/compare/v1.7.2...v1.7.3

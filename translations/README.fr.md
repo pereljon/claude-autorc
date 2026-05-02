@@ -84,7 +84,7 @@ Tapez `help` dans n'importe quelle session pour voir la liste complète des comm
 
 La session principale est une session généraliste vivant dans votre répertoire de base (`~/Claude` par défaut). Elle se lance automatiquement à l'ouverture de session quand `LAUNCHAGENT_MODE=home`, vous donnant une session Claude toujours prête et accessible depuis votre téléphone. Utilisez-la pour gérer toutes vos autres sessions sans avoir à lancer d'abord les sessions de projet spécifiques.
 
-La session principale est toujours **protégée** -- `--shutdown home` refuse de l'arrêter sans `--force`. Les sessions protégées affichent `protected` dans la colonne de statut ; la session appelante est marquée avec `>` dans la colonne de nom.
+La session principale est **protégée** par défaut -- `--shutdown home` refuse de l'arrêter sans `--force`. La protection est assurée par le marqueur `.claudemux-protected` dans `$BASE_DIR`, créé par `claude-mux --install`. Les sessions protégées affichent `protected` dans la colonne de statut ; la session appelante est marquée avec `>` dans la colonne de nom.
 
 ## Ce qu'il fait
 
@@ -161,13 +161,33 @@ Le LaunchAgent exécute `claude-mux --autolaunch` à l'ouverture de session avec
 | Statut | Signification |
 |--------|---------------|
 | `running` | la session tmux existe et Claude tourne |
-| `protected` | identique à `running`, mais la session est protégée — `--shutdown` nécessite `--force` pour l'arrêter. La session principale est toujours protégée. |
+| `protected` | identique à `running`, mais la session est protégée — `--shutdown` nécessite `--force` pour l'arrêter |
 | `stopped` | la session tmux existe mais Claude s'est arrêté |
 | `idle` | un projet `.claude/` existe sous `BASE_DIR` mais aucune session tmux claude-mux n'est en cours (visible uniquement avec `-L`) |
 
 Un préfixe `>` sur le nom de session (p. ex. `> home`) marque la session qui a exécuté la commande de liste.
 
 Lancer `claude-mux` dans un répertoire qui a déjà une session en cours s'y attache. Plusieurs terminaux peuvent s'attacher à la même session (comportement standard de tmux).
+
+## Marqueurs de projet
+
+L'état par projet est stocké dans des fichiers marqueurs à la racine du projet, et non dans une configuration centrale. Les marqueurs utilisent le préfixe `.claudemux-` et sont automatiquement ajoutés au `.gitignore` lors de leur création dans un projet suivi par git.
+
+| Marqueur | Signification | CLI |
+|----------|---------------|-----|
+| `.claudemux-protected` | La session est protégée au lancement — `--shutdown` nécessite `--force` | `--protect` / `--unprotect` |
+| `.claudemux-ignore` | Le projet est masqué des listes `claude-mux -L` | `--hide` / `--show` |
+
+```bash
+claude-mux --hide                    # masquer le projet courant des listes -L
+claude-mux --show                    # afficher à nouveau le projet courant
+claude-mux --protect                 # protéger cette session d'un arrêt accidentel
+claude-mux --unprotect               # supprimer la protection
+claude-mux -L --hidden               # lister uniquement les projets masqués
+claude-mux --delete ~/projets/ancien   # déplacer le dossier du projet dans la corbeille système (macOS)
+```
+
+Les marqueurs suivent le dossier du projet lors de renommages et déplacements. Un seul motif `.gitignore` (`.claudemux-*`) couvre tous les marqueurs actuels et futurs.
 
 ## Configuration
 
@@ -220,9 +240,9 @@ Les projets sont découverts par la présence d'un répertoire `.claude/`, à n'
 │   └── project-d/          # ✗ pas de .claude/ - n'est pas un projet Claude
 ├── deep/nested/project-e/  # ✓ a .claude/ - trouvé à n'importe quelle profondeur
 │   └── .claude/
-└── ignored-project/        # ✗ exclu (.ignore-claudemux)
+└── ignored-project/        # ✗ exclu (.claudemux-ignore)
     ├── .claude/
-    └── .ignore-claudemux
+    └── .claudemux-ignore
 ```
 
 Les noms de session sont dérivés des noms de répertoire : les espaces deviennent des tirets, les caractères non alphanumériques (sauf les tirets) sont remplacés, et les tirets en début/fin sont supprimés. Les répertoires dont le nom assaini est vide sont ignorés avec un avertissement dans le log.
@@ -315,6 +335,7 @@ claude-mux -n ~/app --no-multi-coder      # nouveau projet sans liens symbolique
 # Gestion des sessions
 claude-mux -l                    # liste les sessions par statut (active, running, stopped)
 claude-mux -L                    # liste tous les projets (actifs + inactifs)
+claude-mux -L --hidden           # liste uniquement les projets masqués
 claude-mux -s my-app '/model sonnet'      # envoie une slash command à une session
 claude-mux --shutdown my-app              # arrête une session spécifique
 claude-mux --shutdown                     # arrête toutes les sessions gérées
@@ -324,7 +345,18 @@ claude-mux --restart                     # redémarre toutes les sessions en cou
 claude-mux --permission-mode plan my-app  # redémarre la session en mode plan
 claude-mux -a                    # démarre toutes les sessions gérées sous BASE_DIR
 
+# Marqueurs de projet
+claude-mux --hide                    # masquer le projet courant des listes -L
+claude-mux --hide ~/projets/ancien     # masquer un projet spécifique
+claude-mux --show                    # afficher à nouveau le projet courant
+claude-mux --protect                 # protéger cette session d'un arrêt accidentel
+claude-mux --unprotect               # supprimer la protection
+claude-mux --delete ~/projets/ancien           # déplacer le dossier du projet dans la corbeille système (macOS)
+claude-mux --delete ~/projets/ancien --yes     # idem, sans confirmation
+
 # Autre
+claude-mux --commands            # afficher la référence CLI complète
+claude-mux --config-help         # afficher toutes les options de configuration avec valeurs par défaut et descriptions
 claude-mux --list-templates      # affiche les modèles CLAUDE.md disponibles
 claude-mux --guide               # affiche les commandes conversationnelles à utiliser dans les sessions
 claude-mux --install          # configuration interactive : config + LaunchAgent
