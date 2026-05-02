@@ -69,6 +69,35 @@ Claude: arresta e rilancia la sessione, preservando il contesto della conversazi
 Tu: "passa la sessione api-server in plan mode"
 Claude: riavvia la sessione con la modalità di permessi plan
 
+
+You: "switch this session to yolo mode"
+Claude: switches to bypassPermissions mode via Shift+Tab (no restart needed if already in the cycle)
+
+You: "what mode is this session"
+Claude: reports the current permission mode (default, acceptEdits, plan, bypassPermissions)
+
+You: "switch this session to Opus"
+Claude: sends /model opus to itself via tmux
+
+You: "clear this session"
+Claude: sends /clear to itself, resetting the conversation
+
+You: "hide this project"
+Claude: writes .claudemux-ignore so the project is excluded from -L listings
+
+You: "protect this session"
+Claude: writes .claudemux-protected and sets the tmux marker — shutdown now requires --force
+
+You: "is this session protected"
+Claude: checks for .claudemux-protected in the project folder and reports
+
+You: "delete the old-prototype project"
+Claude: confirms in chat, then moves the project folder to system trash
+
+You: "update claude-mux"
+Claude: warns that all sessions will restart, asks for confirmation, then updates and restarts
+
+
 Tu: "arresta tutte le sessioni"
 Claude: esce in modo controllato da tutte le sessioni gestite
 
