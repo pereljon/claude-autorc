@@ -4,6 +4,13 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.10.1] — 2026-05-05
+
+### Changed
+- **Session list output**: markdown table format when consumed by Claude (non-TTY), printf-aligned columns when in terminal (TTY). Both formats now include row numbers.
+- **Session list sorting**: rows sorted by directory path instead of session name. Groups projects by category folder (development, personal, work).
+- **Numbered session references**: injection prompt now supports "stop 1-3", "restart 5", "compact 2 and 4" — Claude maps numbers to session names from the most recent list.
+
 ## [1.10.0] — 2026-05-05
 
 ### Added
