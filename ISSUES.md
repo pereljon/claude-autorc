@@ -32,37 +32,22 @@
 - Offer to add new settings (with defaults) that didn't exist in the old config
 - Option B: pre-fill prompts with existing config values and let user change them
 
-### Example CLAUDE.md templates not shipped
+### Translation files need v1.10 update
 **Severity:** Low
-**Status:** Open - future improvement
-**Description:** `templates/` in the repo root should contain example CLAUDE.md templates (web, python, etc.) that `install.sh` optionally copies to `~/.claude-mux/templates/` during install. Currently users must create templates from scratch.
+**Status:** Open — translations not yet updated
+**Description:** All 12 translation files (`translations/README.*.md`) are behind v1.10. Changes that need reflecting:
+- curl as primary Quick Start (one-liner)
+- New Install section structure (curl recommended, Homebrew macOS alternative)
+- New conversational examples: rename, save-as-template, tip
+- New features in "What It Does" or similar sections if present
 
 ### Code review deferred issues (v1.9.0)
 **Severity:** Low–Medium
-**Status:** Open — deferred from v1.9 code review
-**Description:** Items identified during v1.9 pre-release review, intentionally deferred:
-- **M3** `delete_command` mixes local `force` param with global `FORCE` mutation for `shutdown_single_session`. Works correctly today but fragile if a non-dispatch call path is added.
-- **M4** TOCTOU race in `move_to_trash`: two deletions at the same second produce a collision; `mv` fails with a clear error message. Use `$$` or a counter instead of a second-granularity timestamp.
-- **M7** Shift+Tab count in setmode doesn't document that `dontAsk` and "unknown" both fall into the 3-press default branch. Add a comment.
-- **M9** Startup polling loop breaks out after accepting a trust prompt without re-polling for a subsequent bypassPermissions warning. Affects first-run sessions in a new project directory with bypassPermissions mode — existing restart fallback covers it.
-- **L3** `ensure_gitignore_entry` uses `grep -xF` (literal), so `.claudemux-*` may be appended alongside individually-listed marker entries. Idempotency edge case, not a correctness bug.
-- **L4** `resolve_project_dir` returns unresolved relative path on `cd` failure, contradicting its contract. Callers catch it via `[[ ! -d ]]`.
-- **L5** `hide_command` dry-run exits before `ensure_gitignore_entry`, so the gitignore update step isn't shown in dry-run output.
-- **L6** `protect_command` sets the tmux option even when `already_protected=true`, but outputs "Already protected". Intentional for upgrade idempotency; needs a comment.
-- **L7** Redundant `${#HIDDEN_PROJECT_DIRS[@]+1}` guard alongside explicit `> 0` check — simplify.
-- **L8** Same as M9: sequential trust + bypass prompts not handled by the polling loop.
-- **L9** "Yes, I accept" bypassPermissions detection is fragile to Claude UI text changes. Use `grep -qi "yes.*accept"` for resilience.
+**Status:** Resolved in v1.10.0 — M3, M4, M9/L8, L3, L9 fixed; L4, L5, L6, L7, M7 addressed with comments
 
 ### Project rename / move with history preservation
 **Severity:** Low
-**Status:** Open - planned feature
-**Description:** When a project directory is renamed or moved, its Claude Code history and memory are stored under the old encoded path in `~/.claude/projects/`. The new path gets no history — Claude Code starts fresh. There is currently no claude-mux command to handle this.
-**Proposed behavior:** `claude-mux --rename OLD NEW` / `claude-mux --move DIR DEST` — renames/moves the project directory and renames the corresponding `~/.claude/projects/` folder to the new encoded path. History and memory follow automatically since they live inside that folder. Marker files (`.claudemux-*`) travel with the project directory via the `mv` itself.
-**Notes:** Rename and move are the same operation under the hood (`mv`). The encoded path in `~/.claude/projects/` uses `-` for `/`, spaces, and most special characters — the rename must re-encode the new path correctly.
-**Additional registries to update (see ~/.claude structure notes below):**
-- `~/.claude/homunculus/projects.json` — contains a parallel project registry keyed by short hex UUID with a `root` path field. Must update the `root` value for the matching entry, or homunculus loses track of the project entirely.
-- `~/.claude/homunculus/projects/<uuid>/project.json` — also contains the `root` path. Must be updated in sync.
-- The `~/.claude/projects/` encoded folder rename handles history and memory automatically.
+**Status:** Resolved in v1.10.0 — `--rename OLD NEW` and `--move SRC DEST` implemented
 
 ### Project copy with history
 **Severity:** Low
@@ -85,19 +70,14 @@
 
 ### Tip of the day
 **Severity:** Low
-**Status:** Open - planned feature
-**Description:** A rotating tip shown at session start and available on demand, surfacing features users may not know about.
-**Proposed behavior:**
-- `claude-mux --tip` prints a single tip (usable standalone or from inside a session)
-- Conversational trigger: "tip" or "tip of the day" — Claude calls `--tip` and displays it
-- On session start: if `TIP_OF_DAY=true` (default), show a tip once per day. Daily gate checked via `~/.claude-mux/.tip-date` (stores last date shown, per-user not per-session — all sessions on the same day see the same tip, only the first session of the day shows it automatically)
-- Selection: date-based hash by default (`day_of_year % num_tips`) so the same tip shows all day; `TIP_MODE=random` for pure random
-- Config options: `TIP_OF_DAY=true/false` (disable entirely), `TIP_MODE=daily|random`
-**Implementation notes:**
-- Tips stored as a numbered bash array embedded in the script. Source of truth is `internal/tips.md` in the repo.
-- No external file dependency at runtime — tips travel with the binary.
-- `--tip` output should be short: one tip, 1-3 lines, no header/footer noise. Just the tip text.
-- See `internal/tips.md` for the full tips list.
+**Status:** Resolved in v1.10.0 — `--tip`, `TIP_OF_DAY`, `TIP_MODE`, daily gate, session-start delivery implemented
+
+### Reply timestamp
+**Severity:** Low
+**Status:** Open - discuss before implementing
+**Description:** Optional config var (`REPLY_TIMESTAMP=false` default) that injects an instruction into the system prompt telling Claude to begin each response with the current date and time via `date '+%Y-%m-%d %H:%M'`.
+**Tradeoff:** Requires a bash tool call at the start of every reply (small overhead). Alternative: inject session start time into prompt (free, but drifts in long sessions).
+**Note:** Per-project CLAUDE.md instruction (as in the analytical template) is the lighter version — only on projects that want it. The config var makes it global.
 
 ### Demo video
 **Severity:** Low
@@ -121,17 +101,7 @@
 
 ### curl install support (macOS + Linux)
 **Severity:** Low
-**Status:** Open - planned for v1.10
-**Description:** A curl-based install path that works on both macOS and Linux without requiring Homebrew or a package manager. The mechanism is already essentially in place (`install.sh` + `--update` self-replace), but it needs to be documented, tested, and promoted as a first-class install method.
-**Proposed:**
-```bash
-curl -fsSL https://github.com/pereljon/claude-mux/releases/latest/download/install.sh | bash
-```
-- Downloads and runs `install.sh`, which pulls the binary and runs `claude-mux --install`
-- `--update` already handles self-replace from GitHub releases for non-brew installs
-- Works on macOS (alternative to Homebrew), Linux (primary method until distro packages exist), and WSL2
-**Notes:** WSL2 on Windows gets this for free — Claude Code runs in WSL2, tmux runs in WSL2, curl install works unchanged. No separate Windows support needed.
-**README change (v1.10):** Promote curl to primary install method in Quick Start. Move Homebrew to "macOS alternative" below it. curl works for any user on any platform with no prerequisites; Homebrew requires Homebrew to be installed first.
+**Status:** Resolved in v1.10.0 — curl install implemented, release-assets workflow added, README updated
 
 ### macOS only - no Linux/systemd support
 **Severity:** Medium

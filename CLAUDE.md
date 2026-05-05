@@ -111,7 +111,7 @@ Each step requires explicit user approval. Approval for one step does not imply 
 
 After completing work, proactively ask which steps the user wants: "Want to commit, push, or release?"
 
-After a release completes, run `/compact`.
+After a release completes, compact the session: `claude-mux -s SESSION_NAME '/compact'` where SESSION_NAME is the current tmux session name.
 
 ## Testing Plan
 
@@ -135,5 +135,6 @@ After any code change, check whether these need updating:
 - **When adding a config var**: update `config_help()` in the script and add an entry to `config.example`
 - **When adding a CLI flag**: update `commands_help()` in the script and the compressed feature list in `build_system_prompt()`
 - **When adding a new lookup flag** (`--*-help`, `--*-commands`): add it to the Reference lookups meta-block in `build_system_prompt()`
+- **When adding a user-facing feature**: add a tip to `internal/tips.md` and embed it in the `tip_of_day()` array in the script
 
 When proposing or making multiple changes, consider logical ordering -- some changes should be performed before others (e.g. move code to a new location before updating references to it, validate inputs before using them).

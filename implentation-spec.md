@@ -45,7 +45,7 @@ Exclusion rules: hidden directories (`.`-prefixed) are pruned from search, direc
 ## Deliverables
 
 1. `claude-mux` — main script, installed to a bin directory in `$PATH` by `install.sh`
-2. `install.sh` — thin installer: copies binary to `~/bin`, adds to `PATH`, then delegates to `claude-mux --install` for config and LaunchAgent setup
+2. `install.sh` — installer: works as both `./install.sh` (local clone) and `curl -fsSL .../install.sh | bash` (curl pipe). Detects curl-pipe vs local clone by checking whether a sibling `claude-mux` binary exists; if not, downloads it from GitHub releases. Adds binary to `~/bin`, updates `PATH`, then delegates to `claude-mux --install`. On Linux, auto-adds `--no-launchagent`.
 3. `config.example` — example user config file
 4. `README.md` — user-facing documentation (canonical English source)
 5. `translations/README.*.md` — translated READMEs (`es`, `fr`, `de`, `pt-BR`, `ja`, `ko`, `it`, `ru`, `zh-CN`, `he`, `ar`, `hi`). Must be kept in sync with `README.md`; update or flag for re-translation whenever `README.md` is modified.
@@ -78,6 +78,8 @@ Note: `com.user.claude-mux.plist` was removed from the repo in v1.8.0. The plist
 | `TMUX_ESCAPE_TIME` | `10` | Escape key delay in milliseconds |
 | `TMUX_TITLE_FORMAT` | `#S` | Terminal/tab title format |
 | `TMUX_MONITOR_ACTIVITY` | `true` | Activity notifications from other sessions |
+| `TIP_OF_DAY` | `true` | Show a tip at session start (once per day, first session only). `--tip` always works regardless. |
+| `TIP_MODE` | `daily` | `daily` picks the same tip all day via day-of-year hash. `random` picks a non-deterministic tip. |
 
 The script sources `~/.claude-mux/config` after setting defaults, so any variable set in the config overrides the default. Tmux session options are applied via `apply_tmux_options()` after session creation.
 
@@ -185,12 +187,13 @@ claude-mux version: <VERSION>
 ```
 The version line is always present. The update line is included only when `~/.claude-mux/.update-check` contains a version newer than the running version. The check date comes from the cache's `last_check` timestamp. Version context is built by `get_version_prompt_lines()`.
 
-**Reference lookups** — four lookup flags that Claude runs on demand rather than inlining:
+**Reference lookups** — five lookup flags that Claude runs on demand rather than inlining:
 ```
 claude-mux --guide          → conversational commands list (used for "help")
 claude-mux --commands       → full CLI reference
 claude-mux --config-help    → config options with defaults, types, descriptions
 claude-mux --list-templates → available CLAUDE.md templates
+claude-mux --tip            → print a tip (standalone; no daily gate)
 ```
 
 **Rules** — behavioral instructions:
@@ -201,8 +204,12 @@ claude-mux --list-templates → available CLAUDE.md templates
 - Use claude-mux for ALL session management — never raw tmux/ls commands
 - When user says "help", run `claude-mux --guide` and print the output verbatim
 - When user says "status", report session name, current model, current permission mode, context estimate, then run `-l`
-- Trigger rules for each conversational phrase (list/start/stop/restart/switch/compact/clear/list templates/update/hide/show/protect/unprotect/delete) map to their corresponding claude-mux commands
+- Trigger rules for each conversational phrase (list/start/stop/restart/switch/compact/clear/list templates/save-as-template/rename/move/update/hide/show/protect/unprotect/delete/tip) map to their corresponding claude-mux commands
 - "update claude-mux": warn user that all sessions will restart, get confirmation, then run `--update` followed by `--restart`
+- "save this as a template named NAME": `--save-template NAME` (defaults to current dir)
+- "rename this project to NAME": `--rename . NAME`
+- "move this project to PATH": `--move . PATH`
+- "tip / tip of the day": run `--tip`, display output in the user's language
 
 **Additional capabilities** — compressed feature list for capability discovery:
 ```
@@ -210,6 +217,8 @@ claude-mux --list-templates → available CLAUDE.md templates
 - Start all sessions at once (-a)
 - New project with a CLAUDE.md template (-n DIR --template NAME, -p for parent dirs)
 - Force-shutdown a protected session (--shutdown SESSION --force)
+- Rename a project (--rename OLD NEW) or move it (--move SRC DEST) — migrates history and registry
+- Save current CLAUDE.md as a reusable template (--save-template NAME [DIR])
 - Hide/show projects (--hide / --show)
 - Protect/unprotect sessions (--protect / --unprotect)
 - Move a project to trash (--delete DIR — macOS; honors protection unless --force)
@@ -393,6 +402,41 @@ Per-project state lives in marker files at the project root, not in central conf
 ### ensure_gitignore_entry(dir)
 
 If `$dir/.git` exists, appends `.claudemux-*` to `$dir/.gitignore` (idempotent — checks for existing entry before appending). Called automatically when `--hide` or `--protect` creates a marker.
+
+### encode_claude_path(path)
+
+Encodes an absolute path to the format Claude Code uses for `~/.claude/projects/` folder names: every non-alphanumeric character (slashes, hyphens, dots, spaces) is replaced with `-`. Uses `printf '%s'` (not `echo`) to avoid trailing newlines becoming an extra `-`. Verified empirically against real `~/.claude/projects/` entries.
+
+### tip_of_day([--session])
+
+Prints one tip from the embedded 42-tip array. Without `--session`, prints unconditionally (used by `--tip`). With `--session`, checks the daily gate: if `~/.claude-mux/.tip-date` contains today's date, returns empty. Otherwise writes today's date and prints the tip.
+
+Tip selection: `daily` mode → `(day_of_year - 1) % num_tips`; `random` mode → `RANDOM % num_tips`.
+
+Respects `TIP_OF_DAY` config: returns immediately if `false`. `--tip` CLI flag still respects `TIP_OF_DAY=false` (by design — the flag is for on-demand use, same code path).
+
+### save_template_command(name, [dir])
+
+Copies `CLAUDE.md` from `dir` (default: current directory) to `~/.claude-mux/templates/<safe_name>.md`. Name transformation: lowercase + `tr -c '[:alnum:]' '-'`. Path traversal guard: verifies resolved template path stays inside `TEMPLATES_DIR`. Refuses if `CLAUDE.md` absent; refuses overwrite unless `--force`. Supports `--dry-run`.
+
+### rename_move_command(src, dst, mode)
+
+Renames or moves a project directory with full registry migration.
+
+- `mode=rename`: `dst` is a plain name (no slashes); renames within same parent.
+- `mode=move`: `dst` is a parent directory; project moves there keeping its name.
+
+Steps:
+1. Resolve and validate `src` (must exist, must not be `$BASE_DIR`)
+2. Compute destination path; refuse if destination already exists
+3. If project is protected, require `--force`
+4. Stop running session (if any) before moving
+5. `mv src dst`
+6. Rename `~/.claude/projects/<encode_claude_path(src)>` → `~/.claude/projects/<encode_claude_path(dst)>` (logs warning on failure, non-fatal)
+7. Update `root` field in `~/.claude/homunculus/projects.json` and per-project `project.json` files via `python3` (no `jq` dependency)
+8. Restart session in new location if it was running (spawns `claude-mux -d dst --no-attach`)
+
+Supports `--dry-run` (shows all planned steps without executing). Supports `--force` (overrides protection).
 
 ### is_claude_mux_session(session_name)
 

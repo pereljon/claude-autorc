@@ -20,10 +20,10 @@ claude-mux fixes all of this. It wraps Claude Code in tmux so sessions persist, 
 ## Quick Start
 
 ```bash
-brew tap pereljon/tap
-brew install claude-mux
-claude-mux --install
+curl -fsSL https://github.com/pereljon/claude-mux/releases/latest/download/install.sh | bash
 ```
+
+Then start a session:
 
 ```bash
 cd ~/path/to/your/project
@@ -91,6 +91,15 @@ Claude: checks for .claudemux-protected in the project folder and reports
 You: "delete the old-prototype project"
 Claude: confirms in chat, then moves the project folder to system trash
 
+You: "rename this project to my-new-name"
+Claude: stops the session, renames the folder, migrates conversation history, restarts
+
+You: "save this as a template named web"
+Claude: copies CLAUDE.md to ~/.claude-mux/templates/web.md
+
+You: "tip"
+Claude: prints a tip — same tip all day, or random if TIP_MODE=random is set
+
 You: "update claude-mux"
 Claude: warns that all sessions will restart, asks for confirmation, then updates and restarts
 
@@ -134,23 +143,32 @@ Under the hood, claude-mux handles:
 
 ## Install
 
-### Homebrew (recommended)
+### curl (recommended)
+
+```bash
+curl -fsSL https://github.com/pereljon/claude-mux/releases/latest/download/install.sh | bash
+```
+
+Downloads the binary, installs it to `~/bin`, adds it to `PATH`, and runs interactive setup. Works on macOS and Linux (Linux: LaunchAgent step skipped).
+
+To update:
+
+```bash
+claude-mux --update     # works from inside any session, or from the terminal
+```
+
+### Homebrew (macOS alternative)
 
 ```bash
 brew tap pereljon/tap
 brew install claude-mux
-```
-
-After installing, run the setup command to create your config and optionally install the LaunchAgent (home session at login):
-
-```bash
 claude-mux --install
 ```
 
 To update:
 
 ```bash
-brew upgrade claude-mux       # or: claude-mux --update  (works from inside any session)
+brew upgrade claude-mux
 ```
 
 ### Manual

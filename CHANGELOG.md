@@ -4,6 +4,32 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.10.0] — 2026-05-05
+
+### Added
+- **`--tip`**: prints one tip from the embedded tips array (42 tips). Standalone, ungated, works from any context.
+- **Tip of the day**: first session started each day receives a tip via the injection prompt. Daily gate uses `~/.claude-mux/.tip-date`. Subsequent sessions that day skip it. Tips are stored in English; Claude renders them in the user's conversation language.
+- **`TIP_OF_DAY` config option** (default: `true`): set to `false` to disable daily tips. `--tip` always works regardless.
+- **`TIP_MODE` config option** (default: `daily`): `random` picks a non-deterministic tip each time; `daily` picks the same tip all day via day-of-year hash.
+- **`--save-template NAME [DIR]`**: copies `CLAUDE.md` from a project directory to `~/.claude-mux/templates/<name>.md`. Name is lowercased and sanitized (non-alphanumeric → `-`). Refuses if `CLAUDE.md` is absent; warns on overwrite (bypass with `--force`). Supports `--dry-run`.
+- **`--rename OLD NEW`**: renames a project directory, migrates `~/.claude/projects/` conversation history to the new encoded path, and updates the homunculus `projects.json` and per-project `project.json` registries. Stops a running session before rename and restarts it in the new location. Requires `--force` if the project is protected. Supports `--dry-run`.
+- **`--move SRC DEST`**: moves a project into a new parent directory with the same behavior as `--rename`. `DEST` is the parent; the project keeps its name.
+- **curl install**: `install.sh` now works when piped from curl. Detects curl-pipe vs local clone (checks for sibling binary); downloads the binary from GitHub releases when no local copy is found. Platform detection: on Linux, LaunchAgent setup is skipped with a note (full Linux support in v2.0).
+- **`release-assets.yml`**: new GitHub Actions workflow uploads `claude-mux` and `install.sh` as release assets on every published release. Enables curl install and `--update` binary download.
+- **`encode_claude_path()`**: encodes an absolute path to the format Claude Code uses for `~/.claude/projects/` folder names (every non-alphanumeric character → `-`). Verified empirically against real entries.
+- **Conversational triggers**: `rename this project to NAME` → `--rename . NAME`; `move this project to PATH` → `--move . PATH`; `save this as a template named NAME`; `tip / tip of the day`.
+
+### Fixed
+- **`delete_command` force isolation** (M3): `shutdown_single_session` now accepts an optional `force` argument rather than reading the global `FORCE`. Prevents unintended global mutation.
+- **`move_to_trash` TOCTOU** (M4): name collision suffix uses `$$` (PID) instead of second-granularity timestamp, guaranteeing uniqueness under rapid successive calls.
+- **Startup polling loop** (M9/L8): after accepting the workspace trust prompt, the polling loop continues (`continue` not `break`) so a subsequent `bypassPermissions` confirmation prompt is also handled. Fixes session startup in new project dirs with bypassPermissions mode.
+- **`bypassPermissions` detection** (L9): `grep -qi "yes.*accept"` replaces `grep "Yes, I accept"` for resilience to UI text changes.
+- **`ensure_gitignore_entry` double-append** (L3): skips append if the pattern already appears in `.gitignore`.
+
+### Changed
+- **Quick Start** (README): curl one-liner is now the primary install method. Homebrew moved to "macOS alternative".
+- **`install.sh` description**: updated to reflect curl-pipe support and platform detection.
+
 ## [1.9.1] — 2026-05-04
 
 ### Changed

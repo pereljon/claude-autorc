@@ -46,6 +46,18 @@
 # Default: default.md
 #DEFAULT_TEMPLATE="default.md"
 
+# ── Tips ─────────────────────────────────────────────────────────────────────
+
+# Show a tip at session start (once per day, first session only).
+# --tip always works regardless of this setting.
+# Default: true
+#TIP_OF_DAY=true
+
+# Tip selection mode:
+#   daily  - same tip all day (day-of-year hash) (default)
+#   random - non-deterministic
+#TIP_MODE=daily
+
 # ── Update check ──────────────────────────────────────────────────────────────
 
 # Check GitHub releases for newer versions (cached daily, TTY-only).

@@ -2,7 +2,7 @@
 # claude-mux — Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.9.1"
+VERSION="1.10.0"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -83,6 +83,14 @@ UPDATE_CHECK=true
 # same project instructions. Set to empty string "" to disable entirely.
 MULTI_CODER_FILES="AGENTS.md GEMINI.md"
 
+# ── Tip of the day ─────────────────────────────────────────────────────────────
+
+# Show a tip on session start. Set to false to disable entirely.
+TIP_OF_DAY=true
+
+# Tip selection mode: "daily" (same tip all day, hash-based) or "random".
+TIP_MODE=daily
+
 # ── Flag parsing ───────────────────────────────────────────────────────────────
 
 DRY_RUN=false
@@ -110,6 +118,11 @@ HIDE_DIR=""
 PROTECT_DIR=""
 DELETE_DIR=""
 DELETE_YES=false
+SAVE_TEMPLATE_NAME=""
+SAVE_TEMPLATE_DIR=""
+RENAME_SRC=""
+RENAME_DST=""
+RENAME_MODE=""
 INSTALL_ARGS=()
 
 guide() {
@@ -131,9 +144,13 @@ claude-mux conversational commands:
   compact this session / compact session [NAME]
   clear this session / clear session [NAME]
   list templates
+  save this as a template named [NAME]
+  rename this project to [NAME]
+  move this project to [PATH]
   update claude-mux
   hide this project / show this project
   protect this session / unprotect this session
+  tip / tip of the day
 EOF
 }
 
@@ -168,6 +185,7 @@ Self-targeting (works inside sessions):
   -n DIR --no-attach       New project (with -p for parent dirs)
   --template NAME          CLAUDE.md template for -n
   --list-templates         Show available templates
+  --save-template NAME [DIR]  Save CLAUDE.md as a template (default: current dir)
   --shutdown SESSION...    Shut down sessions (omit SESSION for all)
   --shutdown ... --force   Override protection
   --restart SESSION...     Restart sessions
@@ -183,6 +201,10 @@ Self-targeting (works inside sessions):
   --unprotect [DIR]        Remove protection
   --delete DIR             Move project folder to system trash (macOS only).
                            --force overrides protection; --yes skips prompt.
+  --rename OLD NEW         Rename project directory, migrate history and homunculus
+  --move SRC DEST          Move project into DEST parent, migrate history and homunculus
+                           Both: --force overrides protection; --dry-run previews steps
+  --tip                    Print a tip (standalone; no daily gate)
   --config-help            List all valid config options
   --commands               Print this reference
   --guide                  Print conversational commands list
@@ -273,6 +295,16 @@ TMUX_BIN, CLAUDE_BIN             defaults: resolved via `command -v`
   Type: absolute path
   Description: Override binary paths. Only needed if tmux/claude are not in
                PATH at runtime.
+
+TIP_OF_DAY                       default: true
+  Type: true | false
+  Description: Show a tip at session start (once per day, first session only).
+               Set false to disable. --tip always works regardless.
+
+TIP_MODE                         default: "daily"
+  Type: daily | random
+  Description: How tips are selected. "daily" picks the same tip all day via
+               a date hash. "random" picks a random tip each time.
 
 Per-project state lives in .claudemux-* marker files in each project folder
 (not in this config). Use claude-mux --hide / --show / --protect / --unprotect
@@ -457,6 +489,27 @@ while [[ $# -gt 0 ]]; do
                 DELETE_DIR="$1"; shift
             fi
             ;;
+        --save-template)
+            set_command "--save-template" "save-template"
+            shift
+            [[ $# -lt 1 || "$1" == -* ]] && { echo "ERROR: --save-template requires a NAME" >&2; exit 1; }
+            SAVE_TEMPLATE_NAME="$1"; shift
+            if [[ $# -gt 0 && "$1" != -* ]]; then
+                SAVE_TEMPLATE_DIR="$1"; shift
+            fi
+            ;;
+        --rename)
+            set_command "--rename" "rename"
+            shift
+            [[ $# -lt 2 || "$1" == -* || "$2" == -* ]] && { echo "ERROR: --rename requires OLD NEW" >&2; exit 1; }
+            RENAME_SRC="$1"; RENAME_DST="$2"; RENAME_MODE="rename"; shift 2
+            ;;
+        --move)
+            set_command "--move" "move"
+            shift
+            [[ $# -lt 2 || "$1" == -* || "$2" == -* ]] && { echo "ERROR: --move requires SRC DEST" >&2; exit 1; }
+            RENAME_SRC="$1"; RENAME_DST="$2"; RENAME_MODE="move"; shift 2
+            ;;
         --yes|-y)        DELETE_YES=true; shift ;;
         --no-template)       NO_TEMPLATE=true; shift ;;
         --no-multi-coder)    NO_MULTI_CODER=true; shift ;;
@@ -465,6 +518,7 @@ while [[ $# -gt 0 ]]; do
         --no-permission-mode) NO_PERMISSION_MODE=true; shift ;;
         -v|--version)     echo "claude-mux $VERSION"; exit 0 ;;
         -h|--help)        usage; exit 0 ;;
+        --tip)            set_command "--tip" "tip"; shift ;;
         --guide)          guide; exit 0 ;;
         --config-help)    config_help; exit 0 ;;
         --commands)       commands_help; exit 0 ;;
@@ -522,8 +576,8 @@ if [[ -n "$TEMPLATE_NAME" && "$NO_TEMPLATE" == "true" ]]; then
     echo "ERROR: --template and --no-template are mutually exclusive" >&2
     exit 1
 fi
-if [[ "$FORCE" == "true" && "$COMMAND" != "shutdown" && "$COMMAND" != "delete" ]]; then
-    echo "ERROR: --force can only be used with --shutdown or --delete" >&2
+if [[ "$FORCE" == "true" && "$COMMAND" != "shutdown" && "$COMMAND" != "delete" && "$COMMAND" != "save-template" && "$COMMAND" != "rename" && "$COMMAND" != "move" ]]; then
+    echo "ERROR: --force can only be used with --shutdown, --delete, --save-template, --rename, or --move" >&2
     exit 1
 fi
 
@@ -619,6 +673,8 @@ HOME_LAUNCH=false
 # Seconds to wait between launching each session (mitigates RC registration issues).
 # Override in ~/.claude-mux/config if needed.
 SLEEP_BETWEEN="${SLEEP_BETWEEN:-5}"
+TIP_OF_DAY="${TIP_OF_DAY:-true}"
+TIP_MODE="${TIP_MODE:-daily}"
 LOG_FILE="$LOG_DIR/claude-mux.log"
 
 # Resolve binary paths: config override → command -v fallback
@@ -1321,6 +1377,7 @@ Reference lookups (run on demand if you need information not covered by trigger 
   claude-mux --commands       → full CLI reference
   claude-mux --config-help    → config options with defaults, types, descriptions
   claude-mux --list-templates → available CLAUDE.md templates
+  claude-mux --tip            → print a tip (standalone; no daily gate)
 
 Rules:
 - You CAN send slash commands (/model, /compact, /clear, etc.) to this session via the -s command. Never tell the user you cannot change models or run slash commands.
@@ -1358,6 +1415,10 @@ Rules:
 - When user says: is this hidden / is this protected — check for .claudemux-ignore or .claudemux-protected in the project folder and report state.
 - When user says: delete this project / delete PROJECT — confirm in chat first (\"Move project '<name>' to trash? Yes/No\"). If user confirms, run claude-mux --delete DIR --yes (the chat exchange replaces the TTY prompt). If the project is protected, warn and ask if --force should be used. The folder is moved to the system trash, recoverable via Finder.
 - When user says: list templates — run claude-mux --list-templates
+- When user says: save this as a template named NAME / make a template from this project called NAME — run claude-mux --save-template NAME (no DIR arg needed; defaults to current project). Confirm with the template filename.
+- When user says: rename this project to NAME — run claude-mux --rename . NAME
+- When user says: move this project to PATH — run claude-mux --move . PATH
+- When user says: tip / tip of the day — run claude-mux --tip and display the output. Tips are in English; render in the user's conversation language.
 - These trigger phrases work in any language. If the user types the equivalent intent in their native language (Spanish, French, German, Japanese, Hebrew, Arabic, Hindi, etc.), infer the intent and run the corresponding command. Output of claude-mux commands (lists, status, guide) is shown verbatim regardless of input language.
 
 Additional capabilities (run claude-mux --commands for full syntax):
@@ -1368,6 +1429,7 @@ Additional capabilities (run claude-mux --commands for full syntax):
   - Get current permission mode of a session (--get-mode SESSION)
   - Hide/show projects (--hide / --show)
   - Protect/unprotect sessions (--protect / --unprotect)
+  - Rename a project (--rename OLD NEW) or move it (--move SRC DEST) — migrates history and registry
   - Move a project to trash (--delete DIR — macOS; honors protection unless --force)
   - Show all config options (--config-help)
   - Run interactive setup or reconfigure (--install)
@@ -1520,12 +1582,15 @@ is_claude_mux_session() {
 
 shutdown_single_session() {
     local session="$1"
+    # Optional second arg lets callers pass force=true directly without touching the
+    # global FORCE. Falls back to $FORCE so dispatch-path callers are unaffected.
+    local force="${2:-$FORCE}"
     if ! "$TMUX_BIN" has-session -t "$session" 2>/dev/null; then
         log "No tmux session named '$session'"
         echo "See $LOG_FILE for details" >&2
         return 1
     fi
-    if is_protected_session "$session" && [[ "$FORCE" != "true" ]]; then
+    if is_protected_session "$session" && [[ "$force" != "true" ]]; then
         echo "ERROR: Session '$session' is protected. Use --force to shut down." >&2
         echo "See $LOG_FILE for details" >&2
         return 1
@@ -1743,7 +1808,7 @@ status_claude_sessions() {
     [[ "$show_idle" == "true" && "${LIST_HIDDEN_MODE:-none}" != "none" ]] && summary="${summary}, ${hidden_count:-0} hidden"
     echo "$summary"
     [[ $unmanaged -gt 0 ]] && echo "($unmanaged non-managed tmux sessions hidden)"
-    if [[ "$show_idle" == "true" && "${LIST_HIDDEN_MODE:-none}" == "none" && ${#HIDDEN_PROJECT_DIRS[@]+1} -eq 1 && ${#HIDDEN_PROJECT_DIRS[@]} -gt 0 ]]; then
+    if [[ "$show_idle" == "true" && "${LIST_HIDDEN_MODE:-none}" == "none" && ${#HIDDEN_PROJECT_DIRS[@]} -gt 0 ]]; then
         echo "(${#HIDDEN_PROJECT_DIRS[@]} hidden projects — use --include-hidden or --hidden to show)"
     fi
     echo_hint_end
@@ -1822,6 +1887,9 @@ ensure_gitignore_entry() {
     local dir="$1" pattern="$2"
     [[ -d "$dir/.git" || -f "$dir/.git" ]] || return 0
     local gi="$dir/.gitignore"
+    # grep -xF checks for exact literal match of pattern. If individual marker files
+    # (e.g. .claudemux-protected) were added manually before the glob, both entries
+    # may coexist. That is harmless — gitignore accepts redundant patterns.
     if [[ -f "$gi" ]] && grep -qxF "$pattern" "$gi" 2>/dev/null; then
         return 0
     fi
@@ -1841,6 +1909,8 @@ resolve_project_dir() {
     if [[ "$arg" = /* ]]; then
         echo "$arg"
     else
+        # Falls back to the unresolved relative path if cd fails (non-existent dir).
+        # Callers that require the path to exist validate with [[ -d ]] afterward.
         (cd "$arg" 2>/dev/null && pwd) || echo "$arg"
     fi
 }
@@ -1870,7 +1940,11 @@ hide_command() {
         return 0
     fi
 
-    [[ "$DRY_RUN" == "true" ]] && { echo "Would hide: $(basename "$dir")"; return 0; }
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo "Would hide: $(basename "$dir")"
+        ensure_gitignore_entry "$dir" ".claudemux-*"  # handles dry-run internally
+        return 0
+    fi
 
     if ! touch "$marker"; then
         echo "ERROR: Cannot write $marker" >&2
@@ -1921,7 +1995,9 @@ protect_command() {
         ensure_gitignore_entry "$dir" ".claudemux-*"
     fi
 
-    # If a tmux session for this dir is currently running, also set the runtime marker
+    # Set the runtime tmux marker unconditionally (even if already_protected=true).
+    # A session launched before the marker file existed won't have the runtime option set,
+    # so running --protect again on an already-protected dir ensures the session is current.
     if "$TMUX_BIN" has-session -t "$session" 2>/dev/null; then
         "$TMUX_BIN" set-option -t "$session" @claude-mux-protected 1 >/dev/null 2>&1
     fi
@@ -1985,7 +2061,9 @@ move_to_trash() {
     base="$(basename "$path")"
     local target="$trash/$base"
     if [[ -e "$target" ]]; then
-        target="$trash/${base}-$(date +%Y%m%d-%H%M%S)"
+        # Append timestamp + PID to avoid collisions when two projects share a basename
+        # or two deletions happen within the same second.
+        target="$trash/${base}-$(date +%Y%m%d-%H%M%S)-$$"
     fi
     mv "$path" "$target"
 }
@@ -2062,13 +2140,10 @@ delete_command() {
 
     [[ "$DRY_RUN" == "true" ]] && { echo "Would delete: $abs"; return 0; }
 
-    # Shut down running session (force, since we're proceeding with destructive action)
+    # Shut down running session (force=true, since we're proceeding with destructive action)
     if "$TMUX_BIN" has-session -t "$session" 2>/dev/null; then
         log "Shutting down session '$session' before deleting project"
-        local _saved_force="$FORCE"
-        FORCE=true
-        shutdown_single_session "$session" >/dev/null 2>&1 || true
-        FORCE="$_saved_force"
+        shutdown_single_session "$session" "true" >/dev/null 2>&1 || true
         # Brief wait for tmux to release the path
         sleep 1
     fi
@@ -2430,12 +2505,13 @@ LAUNCH_EOF
             log "Auto-accepting trust prompt for '$session_name'"
             "$TMUX_BIN" send-keys -t "$session_name" Enter
             sleep 2
-            _ready=true
-            break
+            # Don't break — a bypassPermissions warning may appear immediately after
+            # the trust prompt on first launch of a new project in bypassPermissions mode.
+            continue
         fi
         # bypassPermissions warning: options are "No, exit" (selected) and "Yes, I accept".
         # Must send Down to move to option 2, then wait 1s for UI to register, then Enter.
-        if echo "$_pane" | grep -q "Yes, I accept"; then
+        if echo "$_pane" | grep -qi "yes.*accept"; then
             log "Auto-accepting bypassPermissions warning for '$session_name'"
             "$TMUX_BIN" send-keys -t "$session_name" Down
             sleep 1
@@ -2455,6 +2531,19 @@ LAUNCH_EOF
     else
         log "WARN: Claude prompt not detected in '$session_name' after 10s, sending ready anyway"
         "$TMUX_BIN" send-keys -t "$session_name" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session_name" Enter 2>/dev/null
+    fi
+
+    # Send daily tip in background if first session of the day.
+    # Waits for Claude to respond to Ready? before sending.
+    local _tip_msg
+    _tip_msg=$(tip_of_day --session 2>/dev/null || true)
+    if [[ -n "$_tip_msg" ]]; then
+        local _tip_session="$session_name"
+        (
+            sleep 5
+            "$TMUX_BIN" send-keys -t "$_tip_session" -l "Tip: $_tip_msg" 2>/dev/null
+            "$TMUX_BIN" send-keys -t "$_tip_session" Enter 2>/dev/null
+        ) &
     fi
 
     # Protect at launch if .claudemux-protected marker exists in working dir
@@ -2744,9 +2833,11 @@ LAUNCH_EOF
             if echo "$_pane" | grep -q "Yes, I trust this folder"; then
                 "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Enter 2>/dev/null
                 sleep 2
-                break
+                # Don't break — a bypassPermissions warning may appear immediately after
+                # the trust prompt on first launch of a new project in bypassPermissions mode.
+                continue
             fi
-            if echo "$_pane" | grep -q "Yes, I accept"; then
+            if echo "$_pane" | grep -qi "yes.*accept"; then
                 "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Down 2>/dev/null
                 sleep 1
                 "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Enter 2>/dev/null
@@ -2756,12 +2847,341 @@ LAUNCH_EOF
             echo "$_pane" | grep -qE '^❯|^> ' && break
         done
         "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Enter 2>/dev/null
+        # Send daily tip if first session of the day.
+        local _ltip
+        _ltip=$(tip_of_day --session 2>/dev/null || true)
+        if [[ -n "$_ltip" ]]; then
+            sleep 5
+            "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" -l "Tip: $_ltip" 2>/dev/null
+            "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Enter 2>/dev/null
+        fi
     ) &
 
     if [[ "$NO_ATTACH" == "true" ]]; then
         log "Session '$LAUNCH_SESSION_NAME' created (--no-attach)"
     else
         attach_to_session "$LAUNCH_SESSION_NAME"
+    fi
+}
+
+# Encode an absolute path to the format Claude Code uses for ~/.claude/projects/ folders.
+# Every non-alphanumeric character (/, -, spaces, dots, etc.) becomes '-'.
+# Verified empirically against real ~/.claude/projects/ entries.
+encode_claude_path() {
+    [[ -z "$1" ]] && return 1
+    printf '%s' "$1" | tr -c '[:alnum:]' '-'
+}
+
+# Print one tip from the embedded tips array.
+# Called with no args for --tip (standalone, no daily gate).
+# Called with --session by session-start code: checks daily gate and returns
+# empty string if the tip has already been shown today.
+tip_of_day() {
+    local mode="${1:-}"
+
+    [[ "${TIP_OF_DAY:-true}" != "true" ]] && return 0
+
+    # Tips array — sourced from internal/tips.md. Keep in sync.
+    local tips=(
+        "Say \"status\" in any session to see your session name, current model, permission mode, and context usage — all at once."
+        "Say \"list all sessions\" to see every project claude-mux knows about, including ones that aren't currently running."
+        "Say \"switch this session to plan mode\" to enable Plan permission mode without restarting. Claude handles the Shift+Tab navigation itself."
+        "Say \"switch this session to yolo\" to enable bypassPermissions mode. No restart needed — Claude navigates the mode cycle automatically."
+        "Say \"switch the api-server session to Haiku\" to change the model in another session without leaving your current one."
+        "Say \"compact this session\" instead of typing /compact — works from Remote Control on mobile where slash commands aren't available."
+        "Say \"start a new session in ~/projects/foo\" and Claude will launch it, set up permissions, and confirm by session name. Works from any session including your phone."
+        "Say \"restart the web-dashboard session\" to restart a specific session without affecting others. The session picks up where it left off."
+        "The home session launches at login and is always protected from accidental shutdown. It's your default Remote Control entry point when nothing else is running."
+        "If the home session crashes or gets shut down, the LaunchAgent relaunches it automatically within about 60 seconds."
+        "Say \"update claude-mux\" from any session. Claude warns you that all sessions will restart, asks for confirmation, then handles the update."
+        "\`claude-mux --tip\` prints a tip on demand. Add it to a session alias or just say \"tip\" in any session."
+        "Create \`.claudemux-protected\` in any project folder to protect that session from accidental shutdown. The marker travels with the folder if you move or rename it."
+        "Create \`.claudemux-ignore\` in any project folder to hide it from \`claude-mux -L\` listings. Useful for archived or inactive projects you don't want cluttering the list."
+        "Say \"hide this project\" or \"protect this session\" — Claude writes the marker file and adds it to \`.gitignore\` automatically."
+        "\`claude-mux --get-mode\` reports the current permission mode of your session: bypassPermissions, acceptEdits, plan, or default."
+        "Every session gets \`AGENTS.md\` and \`GEMINI.md\` created as symlinks to \`CLAUDE.md\`. Codex CLI, Gemini CLI, and other AI coders pick up your project instructions automatically."
+        "Trigger phrases work in any language. \"Cambia esta sesión a plan mode\" and \"このセッションをHaikuに切り替えて\" both work — Claude infers the intent."
+        "\`claude-mux -s SESSION '/model haiku'\` sends a slash command to any running session from the terminal. Claude can do this on your behalf from inside a conversation."
+        "\`claude-mux --commands\` prints the full CLI reference. \`claude-mux --guide\` lists all conversational trigger phrases. Both are available from inside a session."
+        "\`claude-mux -n ~/projects/new-thing --template python\` creates a new project directory with git init, permissions setup, and a CLAUDE.md from your template library."
+        "\`claude-mux --list-templates\` shows your available CLAUDE.md templates. Templates live in \`~/.claude-mux/templates/\` and can be created or edited from the home session."
+        "\`claude-mux --config-help\` prints every config option with its default value, type, and description — no need to dig through docs."
+        "Say \"show config\" from the home session to see your current \`~/.claude-mux/config\` settings. Say \"set BASE_DIR to ~/work\" to change a value."
+        "\`claude-mux -L\` lists all projects including inactive ones. \`claude-mux -L --hidden\` shows only hidden projects. \`claude-mux -L --include-hidden\` shows everything."
+        "The current session is marked with \`>\` in session listings, so you always know which session ran the command."
+        "Protected sessions show \`protected\` status in listings. A protected session that isn't running shows \`stopped\` — so you can see at a glance that something that should be running isn't."
+        "\`claude-mux --delete ~/projects/old-thing\` moves the project folder to the Trash — never \`rm -rf\`. Recoverable from Finder if you change your mind."
+        "If you have multiple GitHub SSH accounts configured in \`~/.ssh/config\`, claude-mux injects the host aliases into every session. Claude knows which account to use for each remote without being told."
+        "Session restarts typically take about 2 seconds. claude-mux polls for Claude's input prompt rather than using fixed sleeps, so it hands control back as soon as Claude is ready."
+        "\`claude-mux --install\` reconfigures your setup interactively — base directory, home session model, permission mode, LaunchAgent behavior. Run it any time your setup needs changing."
+        "claude-mux adds itself to each project's \`.claude/settings.local.json\` allow list automatically. Claude can run session management commands without triggering permission prompts mid-conversation."
+        "Session output that Claude might summarize — like session listings — is wrapped in XML tags that instruct Claude to display it verbatim. What you see is the real output, not a paraphrase."
+        "Say \"stop all sessions\" to shut everything down at once. Protected sessions are skipped automatically — you won't accidentally kill the home session."
+        "The injection prompt costs about 800 tokens per session. It replaced a much larger inline guide in v1.9 — reference lookups (\`--guide\`, \`--commands\`) are fetched on demand instead of loaded every time."
+        "\`claude-mux --restart\` from inside a session restarts all other sessions first, then restarts itself last — so it can finish coordinating before its own context is torn down."
+        "The ready trigger (\"Session ready!\") after every start or restart confirms the session is alive and the injection is working. If you don't see it, the session may have failed to load correctly."
+        "Say \"what mode is this session\" to ask Claude what permission mode it's running in. Claude calls \`--get-mode\` and reports back."
+        "Conversation history is stored in \`~/.claude/projects/\` under an encoded version of your project path. Renaming a project directory without moving this folder means Claude starts fresh with no history."
+        "Say \"list templates\" from any session to see your available CLAUDE.md templates without leaving the conversation."
+        "Say \"save this as a template named NAME\" to copy the current project's CLAUDE.md into your template library. Use it on any future project with \`claude-mux -n DIR --template NAME\`."
+        "\`claude-mux --rename old-name new-name\` renames a project folder and moves its conversation history to match. Say \"rename this project to NAME\" to do it from inside a session."
+    )
+
+    local num_tips=${#tips[@]}
+    local idx
+
+    if [[ "${TIP_MODE:-daily}" == "random" ]]; then
+        idx=$(( RANDOM % num_tips ))
+    else
+        local day_of_year
+        day_of_year=$(date +%j)
+        idx=$(( (10#$day_of_year - 1) % num_tips ))
+    fi
+
+    if [[ "$mode" == "--session" ]]; then
+        # Daily gate: only show tip once per day (first session of the day).
+        local tip_date_file="$CLAUDE_MUX_DIR/.tip-date"
+        local today
+        today=$(date +%Y-%m-%d)
+        if [[ -f "$tip_date_file" ]] && [[ "$(cat "$tip_date_file" 2>/dev/null)" == "$today" ]]; then
+            return 0  # Already shown today
+        fi
+        printf '%s' "$today" > "$tip_date_file" 2>/dev/null || true
+        printf '%s\n' "${tips[$idx]}"
+    else
+        # Standalone --tip: no gate, just print.
+        printf '%s\n' "${tips[$idx]}"
+    fi
+}
+
+save_template_command() {
+    local name="$1"
+    local dir="${2:-}"
+
+    if [[ -z "$name" ]]; then
+        echo "ERROR: --save-template requires a NAME" >&2
+        return 1
+    fi
+
+    # Resolve source directory
+    local src_dir
+    src_dir=$(resolve_project_dir "$dir")
+
+    if [[ ! -d "$src_dir" ]]; then
+        echo "ERROR: '$src_dir' is not a directory" >&2
+        return 1
+    fi
+
+    local src_claude="$src_dir/CLAUDE.md"
+    if [[ ! -f "$src_claude" ]]; then
+        echo "ERROR: No CLAUDE.md found in $src_dir" >&2
+        return 1
+    fi
+
+    # Transform name: lowercase, non-alphanumeric → '-', add .md
+    local safe_name
+    safe_name=$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]' | tr -c '[:alnum:]' '-')
+    local tpl_path="$TEMPLATES_DIR/${safe_name}.md"
+
+    # Guard against path traversal
+    local _real_tpl _real_tmpldir
+    _real_tmpldir="$(cd "$TEMPLATES_DIR" 2>/dev/null && pwd -P)"
+    if [[ -z "$_real_tmpldir" ]]; then
+        echo "ERROR: Templates directory '$TEMPLATES_DIR' not found" >&2
+        return 1
+    fi
+    _real_tpl="${_real_tmpldir}/${safe_name}.md"
+    if [[ "$_real_tpl" != "$_real_tmpldir/"* ]]; then
+        echo "ERROR: Template name resolves outside templates directory" >&2
+        return 1
+    fi
+
+    # Warn on overwrite unless --force
+    if [[ -f "$tpl_path" && "$FORCE" != "true" ]]; then
+        echo "ERROR: Template '${safe_name}.md' already exists. Use --force to overwrite." >&2
+        return 1
+    fi
+
+    [[ "$DRY_RUN" == "true" ]] && { echo "Would save: $src_claude → $tpl_path"; return 0; }
+
+    mkdir -p "$TEMPLATES_DIR"
+    cp "$src_claude" "$tpl_path"
+    echo "Saved: ${safe_name}.md"
+}
+
+# Rename or move a project directory, migrating Claude Code history and
+# homunculus registry entries to the new path.
+#
+# mode=rename: RENAME_DST is a plain name (no slash); renamed inside same parent.
+# mode=move:   RENAME_DST is a parent directory; project moves there keeping its name.
+rename_move_command() {
+    local src_arg="$1"
+    local dst_arg="$2"
+    local mode="$3"   # "rename" or "move"
+
+    if [[ -z "$src_arg" || -z "$dst_arg" ]]; then
+        echo "ERROR: --${mode} requires two arguments" >&2
+        return 1
+    fi
+
+    # Resolve and validate source
+    local src_abs
+    src_abs=$(resolve_project_dir "$src_arg")
+    if [[ ! -d "$src_abs" ]]; then
+        echo "ERROR: '$src_abs' is not a directory" >&2
+        return 1
+    fi
+    src_abs=$(cd "$src_abs" && pwd -P)
+
+    # Guard: refuse BASE_DIR
+    local norm_base
+    norm_base=$(cd "$BASE_DIR" 2>/dev/null && pwd -P) || norm_base="$BASE_DIR"
+    if [[ "$src_abs" == "$norm_base" ]]; then
+        echo "ERROR: Cannot rename or move the home session directory" >&2
+        return 1
+    fi
+
+    # Compute destination absolute path
+    local dst_abs
+    if [[ "$mode" == "rename" ]]; then
+        if [[ "$dst_arg" == */* ]]; then
+            echo "ERROR: --rename NEW should be a name only (no path separators). Use --move to change the parent directory." >&2
+            return 1
+        fi
+        dst_abs="$(dirname "$src_abs")/$dst_arg"
+    else
+        local dst_parent
+        dst_parent=$(resolve_project_dir "$dst_arg")
+        if [[ ! -d "$dst_parent" ]]; then
+            echo "ERROR: Destination parent '$dst_parent' is not a directory" >&2
+            return 1
+        fi
+        dst_parent=$(cd "$dst_parent" && pwd -P)
+        dst_abs="$dst_parent/$(basename "$src_abs")"
+    fi
+
+    # Guard: destination must not exist
+    if [[ -e "$dst_abs" ]]; then
+        echo "ERROR: Destination '$dst_abs' already exists" >&2
+        return 1
+    fi
+
+    # Guard: protected session requires --force
+    local session
+    session=$(session_name_for_dir "$src_abs")
+    if [[ -f "$src_abs/.claudemux-protected" && "$FORCE" != "true" ]]; then
+        echo "ERROR: '$session' is protected. Use --force to rename/move." >&2
+        return 1
+    fi
+
+    local old_enc new_enc
+    old_enc=$(encode_claude_path "$src_abs")
+    new_enc=$(encode_claude_path "$dst_abs")
+
+    # Dry run: show what would happen
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo "Would ${mode}: $src_abs → $dst_abs"
+        local old_hist="$HOME/.claude/projects/$old_enc"
+        if [[ -d "$old_hist" ]]; then
+            echo "Would rename history: $old_enc → $new_enc"
+        else
+            echo "No history to migrate (never had a session)"
+        fi
+        if [[ -f "$HOME/.claude/homunculus/projects.json" ]]; then
+            echo "Would update homunculus registry"
+        fi
+        if "$TMUX_BIN" has-session -t "$session" 2>/dev/null; then
+            echo "Would stop session '$session' and restart as '$(basename "$dst_abs")'"
+        fi
+        return 0
+    fi
+
+    # Stop session if running
+    local was_running=false
+    if "$TMUX_BIN" has-session -t "$session" 2>/dev/null; then
+        was_running=true
+        echo "Stopping session '$session'..."
+        shutdown_single_session "$session" "true"
+    fi
+
+    # Move the directory
+    if ! mv "$src_abs" "$dst_abs"; then
+        echo "ERROR: Failed to move '$src_abs' to '$dst_abs'" >&2
+        return 1
+    fi
+
+    # Rename ~/.claude/projects/ history folder
+    local old_hist="$HOME/.claude/projects/$old_enc"
+    local new_hist="$HOME/.claude/projects/$new_enc"
+    if [[ -d "$old_hist" ]]; then
+        if mv "$old_hist" "$new_hist" 2>/dev/null; then
+            echo "Migrated history: $old_enc → $new_enc"
+        else
+            echo "WARNING: Could not rename history folder '$old_hist' (non-fatal)" >&2
+        fi
+    fi
+
+    # Update homunculus projects.json
+    # Paths are passed via env vars to avoid single-quote injection in Python literals.
+    local hom_projects="$HOME/.claude/homunculus/projects.json"
+    if [[ -f "$hom_projects" ]]; then
+        _RENAME_FILE="$hom_projects" _RENAME_SRC="$src_abs" _RENAME_DST="$dst_abs" \
+        python3 -c "
+import json, sys, os
+try:
+    fpath = os.environ['_RENAME_FILE']
+    src = os.environ['_RENAME_SRC']
+    dst = os.environ['_RENAME_DST']
+    with open(fpath, 'r') as f:
+        data = json.load(f)
+    updated = 0
+    for v in data.values():
+        if isinstance(v, dict) and v.get('root') == src:
+            v['root'] = dst
+            updated += 1
+    with open(fpath, 'w') as f:
+        json.dump(data, f, indent=2)
+    if updated:
+        print('Updated homunculus projects.json (' + str(updated) + ' entr' + ('y' if updated == 1 else 'ies') + ')')
+except Exception as e:
+    print('WARNING: homunculus projects.json update failed: ' + str(e), file=sys.stderr)
+" 2>&1 || true
+
+        # Update per-project project.json files
+        local hom_dir="$HOME/.claude/homunculus/projects"
+        if [[ -d "$hom_dir" ]]; then
+            while IFS= read -r -d '' proj_json; do
+                _RENAME_FILE="$proj_json" _RENAME_SRC="$src_abs" _RENAME_DST="$dst_abs" \
+                python3 -c "
+import json, os
+try:
+    fpath = os.environ['_RENAME_FILE']
+    src = os.environ['_RENAME_SRC']
+    dst = os.environ['_RENAME_DST']
+    with open(fpath, 'r') as f:
+        data = json.load(f)
+    if isinstance(data, dict) and data.get('root') == src:
+        data['root'] = dst
+        with open(fpath, 'w') as f:
+            json.dump(data, f, indent=2)
+except Exception:
+    pass
+" 2>/dev/null
+            done < <(find "$hom_dir" -name "project.json" -print0 2>/dev/null)
+        fi
+    fi
+
+    local src_name dst_name
+    src_name=$(basename "$src_abs")
+    dst_name=$(basename "$dst_abs")
+    echo "Done: $src_name → $dst_name"
+
+    # Restart session in new location if it was running
+    if [[ "$was_running" == "true" ]]; then
+        echo "Restarting session as '$dst_name'..."
+        local mux_bin
+        mux_bin=$(command -v claude-mux 2>/dev/null) || mux_bin="${BASH_SOURCE[0]}"
+        "$mux_bin" -d "$dst_abs" --no-attach 2>&1
     fi
 }
 
@@ -2962,6 +3382,10 @@ case "$COMMAND" in
     list)     status_claude_sessions; exit 0 ;;
     list-all) status_claude_sessions true; exit 0 ;;
     list-templates) list_templates; exit 0 ;;
+    tip)           tip_of_day; exit 0 ;;
+    save-template) save_template_command "${SAVE_TEMPLATE_NAME:-}" "${SAVE_TEMPLATE_DIR:-}"; exit $? ;;
+    rename)     rename_move_command "${RENAME_SRC:-}" "${RENAME_DST:-}" "rename"; exit $? ;;
+    move)       rename_move_command "${RENAME_SRC:-}" "${RENAME_DST:-}" "move"; exit $? ;;
     hide)       hide_command "${HIDE_DIR:-}"; exit $? ;;
     show)       show_command "${HIDE_DIR:-}"; exit $? ;;
     protect)    protect_command "${PROTECT_DIR:-}"; exit $? ;;
@@ -3173,6 +3597,9 @@ case "$COMMAND" in
                     elif echo "$_sm_pane_tail" | grep -q "accept edits on"; then
                         _btab_count=2
                     else
+                        # 3 presses covers default, auto, dontAsk, and any unrecognized mode.
+                        # bypassPermissions is always the 3rd entry in the Shift+Tab cycle
+                        # since every session launches with --allow-dangerously-skip-permissions.
                         _btab_count=3
                     fi
                     log "Switching '$_sm' to bypassPermissions via $_btab_count Shift+Tab"
