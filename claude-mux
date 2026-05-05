@@ -1419,7 +1419,7 @@ Rules:
 - When user says: rename this project to NAME — run claude-mux --rename . NAME
 - When user says: move this project to PATH — run claude-mux --move . PATH
 - When user says: tip / tip of the day — run claude-mux --tip and display the output. Tips are in English; render in the user's conversation language.
-- When user references sessions by number (e.g., "stop 1-3", "restart 5", "compact 2 and 4"), map the numbers to session names from the most recent list output, then run the corresponding command for each.
+- When user references sessions by number (e.g., stop 1-3, restart 5, compact 2 and 4), map the numbers to session names from the most recent list output, then run the corresponding command for each.
 - These trigger phrases work in any language. If the user types the equivalent intent in their native language (Spanish, French, German, Japanese, Hebrew, Arabic, Hindi, etc.), infer the intent and run the corresponding command. Output of claude-mux commands (lists, status, guide) is shown verbatim regardless of input language.
 
 Additional capabilities (run claude-mux --commands for full syntax):
