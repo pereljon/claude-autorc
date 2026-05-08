@@ -30,7 +30,11 @@ if ! command -v claude &>/dev/null; then
     fi
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-/dev/stdin}")" && pwd)"
+if [[ -n "${BASH_SOURCE[0]:-}" && "${BASH_SOURCE[0]}" != "/dev/stdin" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+else
+    SCRIPT_DIR=""  # pipe mode; binary will be downloaded
+fi
 BIN_DIR=""
 INSTALL_ARGS=()
 CLEANUP_TMP=""
@@ -116,15 +120,15 @@ if [[ ! -w "$BIN_DIR" ]]; then
 fi
 
 # ── Resolve binary source (local clone vs curl-piped) ─────────────────────────
-# When run as a curl pipe, BASH_SOURCE[0] is /dev/stdin so SCRIPT_DIR
-# resolves to the current directory. Check if the binary is actually there.
+# When run as a curl pipe, SCRIPT_DIR is empty — download the binary.
+# When run from a local clone, check if the binary is next to the script.
 
 cleanup() {
     [[ -n "$CLEANUP_TMP" ]] && rm -f "$CLEANUP_TMP"
 }
 trap cleanup EXIT
 
-BINARY_SOURCE="$SCRIPT_DIR/claude-mux"
+BINARY_SOURCE="${SCRIPT_DIR:+$SCRIPT_DIR/claude-mux}"
 if [[ ! -f "$BINARY_SOURCE" ]]; then
     # Curl-piped install: fetch binary from GitHub releases
     echo "Downloading claude-mux binary..."
