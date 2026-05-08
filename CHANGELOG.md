@@ -4,6 +4,11 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.12.5] — 2026-05-08
+
+### Fixed
+- **Injection: gh auth for multi-account GitHub**: when multiple SSH accounts are configured, the injection now tells Claude to run `gh auth switch --user <account>` before `gh` CLI operations (repo create, PR create, etc.) and to verify the active account via `gh auth status` before any `gh` command. Previously only SSH remote aliases were mentioned, causing `gh` commands to use the wrong account.
+
 ## [1.12.4] — 2026-05-08
 
 ### Fixed
@@ -337,7 +342,8 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 - User config at `~/.claude-autorc` (later `~/.claude-mux/config`).
 - Logging to `~/Library/Logs/claude-autorc.log` (later `claude-mux.log`).
 
-[Unreleased]: https://github.com/pereljon/claude-mux/compare/v1.12.4...HEAD
+[Unreleased]: https://github.com/pereljon/claude-mux/compare/v1.12.5...HEAD
+[1.12.5]: https://github.com/pereljon/claude-mux/compare/v1.12.4...v1.12.5
 [1.12.4]: https://github.com/pereljon/claude-mux/compare/v1.12.3...v1.12.4
 [1.12.3]: https://github.com/pereljon/claude-mux/compare/v1.12.2...v1.12.3
 [1.12.2]: https://github.com/pereljon/claude-mux/compare/v1.12.1...v1.12.2

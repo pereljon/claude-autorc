@@ -363,7 +363,7 @@ Additional capabilities (run claude-mux --commands for full syntax):
   - Update claude-mux (--update)
 
 Self-targeting send: claude-mux -s '<session-name>' '/command' sends slash commands to yourself.
-GitHub SSH accounts configured in ~/.ssh/config: <accounts>. For gh CLI operations (repo create, PR create, etc.), run `gh auth switch --user <account>` first to target the correct GitHub account.
+GitHub SSH accounts configured in ~/.ssh/config: <accounts>. For gh CLI operations (repo create, PR create, etc.), run `gh auth switch --user <account>` first to target the correct GitHub account. Before any gh command, check `gh auth status` to verify the active account matches the repo's remote.
 ```
 
 The home session receives additional context: a description of its role, plus self-management triggers for reading/editing config and templates. When `ALLOW_CROSS_SESSION_CONTROL=true`, the send command can target any session, not just itself. The path is the absolute path to the script at launch time, so sessions don't depend on `PATH`.
