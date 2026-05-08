@@ -4,6 +4,21 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.12.4] — 2026-05-08
+
+### Fixed
+- **CLAUDE_MUX_BIN resolution**: restored `command -v` lookup before `dirname` fallback so the binary path resolves correctly when invoked via PATH.
+- **install.sh pipe detection**: explicit check for pipe mode instead of relying on `/dev/stdin` path side-effect.
+- **tty_in declaration order**: moved `tty_in` setup above first use in `do_install()` so the reconfigure prompt works in curl-pipe mode.
+- **Portable sed in set_tip_config**: replaced macOS-only `sed -i ''` with portable `sed > tmp && mv` pattern.
+- **Uninstall counter**: Python cleanup script now exits 2 for no-op so the counter only reports actually-modified files.
+- **Uninstall completeness**: `do_uninstall` now cleans `additionalDirectories` entries alongside `allow` rules.
+- **Uninstall message**: uses resolved `$CLAUDE_MUX_BIN` instead of redundant `command -v` lookup.
+- **Tip text**: replaced CLI-flag tip with conversational "update claude-mux" tip.
+
+### Added
+- **FAQ.md**: 20 entries covering common questions (fork/update, Linux, home session, Remote Control, permission modes, templates, tips, SSH multi-account, Homebrew, uninstall, and more).
+
 ## [1.12.3] — 2026-05-08
 
 ### Fixed
