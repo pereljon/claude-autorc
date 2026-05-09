@@ -2,22 +2,9 @@
 
 [English](../README.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português](README.pt-BR.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Italiano](README.it.md) · **Русский** · [中文](README.zh-CN.md) · [עברית](README.he.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
 
-Постоянные сессии Claude Code для всех ваших проектов, доступные откуда угодно через мобильное приложение Claude. ***Управляется Claude!***
+Постоянные сессии Claude Code для всех ваших проектов - доступные откуда угодно через мобильное приложение Claude. ***Управляется Claude!***
 
-## Зачем это нужно
-
-Remote Control обещает Claude Code отовсюду, но без управления сессиями это интерфейс второго сорта даже из Claude Desktop:
-
-- Сессии завершаются при закрытии терминала, и контекст разговора не возобновляется автоматически
-- Нет постоянной точки доступа: когда вы берёте телефон, ничего не запущено, если только вы не оставили что-то открытым
-- Если сессия не запущена, Remote Control бесполезен: нельзя ни открыть проект, ни запустить новый
-- Даже в активной RC-сессии слэш-команды не работают: нет смены модели, сжатия контекста или изменения режима разрешений
-- Создание нового проекта требует вручную создать директорию, инициализировать git, написать CLAUDE.md, установить режим разрешений и выбрать модель: всё это невозможно сделать через RC
-- Управление несколькими проектами означает несколько ручных запусков терминала без общего обзора того, что работает и в каком состоянии
-
-claude-mux решает всё это. Он оборачивает Claude Code в tmux, чтобы сессии не прерывались, внедряет системный промпт, благодаря которому Claude может управлять собственными сессиями, и маршрутизирует слэш-команды через tmux, чтобы они работали через Remote Control. Как только сессия запущена, вы управляете всем, просто разговаривая с Claude: в терминале или через мобильное приложение.
-
-## Быстрый старт
+## Установка
 
 ```bash
 curl -fsSL https://github.com/pereljon/claude-mux/releases/latest/download/install.sh | bash
@@ -26,447 +13,127 @@ curl -fsSL https://github.com/pereljon/claude-mux/releases/latest/download/insta
 Затем запустите сессию:
 
 ```bash
-cd ~/path/to/your/project
-claude-mux
-```
-
-Или:
-
-```bash
 claude-mux ~/path/to/your/project
 ```
 
-Всё. Вы находитесь в постоянной сессии Claude с поддержкой контекста и включённым Remote Control. Дальше всё делается через разговор.
+Установщик спрашивает, хотите ли вы home-сессию при входе в систему. Если вы соглашаетесь, защищённая сессия Claude запускается автоматически при каждом входе - всегда доступная с телефона или любого клиента Remote Control, даже если вы не открываете терминал.
+
+Всё. Вы находитесь в постоянной сессии Claude с поддержкой контекста и включённым Remote Control. **Дальше всё делается через разговор.**
+
+[Homebrew, ручная установка и другие варианты](../docs/INSTALL.md)
+
+## Зачем это нужно
+
+Remote Control обещает Claude Code отовсюду - но без управления сессиями это интерфейс второго сорта даже из Claude Desktop:
+
+- **Сессии завершаются** при закрытии терминала
+- **Контекст разговора** не возобновляется автоматически
+- **Нет постоянной точки доступа** - ничего не запущено, когда вы берёте телефон, если только вы не оставили что-то открытым
+- **Remote Control требует запущенную сессию** - запустить её из RC нельзя
+- **Слэш-команды не работают в RC-сессиях** - нет смены модели, сжатия контекста или изменения режима разрешений
+- **Создание новых проектов** - требует вручную создать директорию, инициализировать git, написать CLAUDE.md и выбрать модель
+- **Нет управления проектами** - нет способа увидеть неактивные проекты, переименовать, переместить или удалить проекты без потери истории
+
+**claude-mux устраняет пробел в управлении сессиями.** Он оборачивает Claude Code в tmux, чтобы сессии не прерывались, внедряет системный промпт, чтобы Claude мог управлять собственными сессиями, и маршрутизирует слэш-команды через tmux, чтобы они работали через Remote Control. Как только сессия запущена, вы управляете всем, разговаривая с Claude - в терминале или через мобильное приложение.
+
+## Что можно делать в сессии claude-mux
+
+- **Управлять любой сессией из любой сессии** - запускать, останавливать, перезапускать, просматривать и сжимать проекты на естественном языке
+- **Доступ ко всему отовсюду** - у каждой сессии включён Remote Control, поэтому мобильное приложение Claude, десктопное приложение или любой удалённый клиент является полноценным интерфейсом
+- **Переключать модели и режимы разрешений** - скажите "switch to Haiku" или "switch to plan mode", и Claude всё сделает, даже через Remote Control
+- **Создавать новые проекты** - "create a new project called my-app" настраивает директорию, git, CLAUDE.md и запускает сессию. Шаблоны CLAUDE.md позволяют повторно использовать инструкции между проектами.
+- **Сохранять сессии при перезагрузках** - опциональная home-сессия запускается при входе и остаётся активной; все сессии автоматически возобновляют последний разговор
+- **Отправлять слэш-команды через Remote Control** - Claude маршрутизирует `/model`, `/compact`, `/clear` и другие слэш-команды к запущенной сессии, обходя [известное ограничение](https://github.com/anthropics/claude-code/issues/30674)
+- **Сохранять историю разговоров** - переименование, перемещение и перезапуск проектов автоматически сохраняют историю
+- **Организовывать проекты** - скрывать, переименовывать, перемещать, удалять и защищать проекты изнутри любой сессии
+- **Поддержка нескольких аккаунтов GitHub** - обнаруживает SSH-алиасы в `~/.ssh/config` и внедряет их в сессии, чтобы Claude использовал правильный аккаунт для каждого проекта
+- **Поддержка нескольких AI CLI** - автоматически создаёт символические ссылки `AGENTS.md` и `GEMINI.md`, чтобы Codex CLI, Gemini CLI и другие использовали одни и те же инструкции
+- **Работает на любом языке** - диалоговые команды определяются по намерению, а не по ключевым словам
 
 ## Разговор с Claude
 
-Именно так используется claude-mux в повседневной работе. В каждую сессию внедряются команды, позволяющие Claude управлять сессиями, переключать модели, отправлять слэш-команды и создавать новые проекты: всё это прямо из разговора. Запоминать CLI-флаги не нужно.
+Именно так используется claude-mux в повседневной работе. В каждую сессию внедряются команды, позволяющие Claude управлять сессиями, переключать модели, отправлять слэш-команды и создавать новые проекты - всё из разговора. Запоминать CLI-флаги не нужно.
 
 ```
 Вы: "status"
 Claude: сообщает имя сессии, модель, режим разрешений, использование контекста и список всех сессий
 
-Вы: "list active sessions"
+Вы: "покажи активные сессии"
 Claude: показывает все запущенные сессии с их статусом
 
-Вы: "start a session for my api-server project"
+Вы: "запусти сессию для моего проекта api-server"
 Claude: запускает сессию в ~/Claude/work/api-server
 
-Вы: "create a new project called mobile-app using the web template"
+Вы: "создай новый проект mobile-app с шаблоном web"
 Claude: создаёт каталог проекта, инициализирует git, применяет шаблон, запускает сессию
 
-Вы: "switch this session to Haiku"
+Вы: "переключи эту сессию на Haiku"
 Claude: отправляет /model haiku самому себе через tmux
 
-Вы: "compact the api-server session"
+Вы: "сожми сессию api-server"
 Claude: отправляет /compact в сессию api-server
 
-Вы: "restart the web-dashboard session"
+Вы: "перезапусти сессию web-dashboard"
 Claude: завершает и перезапускает сессию, сохраняя контекст разговора
 
-Вы: "switch the api-server session to plan mode"
+Вы: "переключи сессию api-server в plan mode"
 Claude: перезапускает сессию в режиме разрешений plan
 
-Вы: "switch this session to yolo mode"
+Вы: "переключи эту сессию в yolo mode"
 Claude: переключается в режим bypassPermissions через Shift+Tab без перезапуска
 
-Вы: "what mode is this session"
+Вы: "какой режим у этой сессии"
 Claude: сообщает текущий режим разрешений (default, acceptEdits, plan, bypassPermissions)
 
-Вы: "switch this session to Opus"
+Вы: "переключи эту сессию на Opus"
 Claude: отправляет /model opus самому себе через tmux
 
-Вы: "clear this session"
+Вы: "очисти эту сессию"
 Claude: отправляет /clear самому себе, сбрасывая разговор
 
-Вы: "hide this project"
+Вы: "скрой этот проект"
 Claude: создаёт .claudemux-ignore, чтобы проект не отображался в списках -L
 
-Вы: "protect this session"
-Claude: создаёт .claudemux-protected и устанавливает маркер tmux, для остановки теперь нужен --force
+Вы: "защити эту сессию"
+Claude: создаёт .claudemux-protected и устанавливает маркер tmux - для остановки теперь нужен --force
 
-Вы: "is this session protected"
+Вы: "эта сессия защищена?"
 Claude: проверяет наличие .claudemux-protected в каталоге проекта и сообщает
 
-Вы: "delete the old-prototype project"
+Вы: "удали проект old-prototype"
 Claude: уточняет в чате, затем перемещает папку проекта в корзину
 
-Вы: "rename this project to my-new-name"
+Вы: "переименуй этот проект в my-new-name"
 Claude: останавливает сессию, переименовывает папку, переносит историю, перезапускает
 
-Вы: "save this as a template named web"
+Вы: "сохрани это как шаблон с именем web"
 Claude: копирует CLAUDE.md в ~/.claude-mux/templates/web.md
 
-Вы: "tip"
-Claude: выводит совет; один и тот же совет в течение дня, или случайный при TIP_MODE=random
+Вы: "совет"
+Claude: выводит совет - один и тот же весь день, или случайный при TIP_MODE=random
 
-Вы: "enable tips" / "disable tips"
+Вы: "включи советы" / "выключи советы"
 Claude: регистрирует или удаляет хук совета дня во всех проектах
 
-Вы: "update claude-mux"
+Вы: "обнови claude-mux"
 Claude: предупреждает о перезапуске всех сессий, спрашивает подтверждение, затем обновляет и перезапускает
 
-Вы: "stop all sessions"
+Вы: "останови все сессии"
 Claude: корректно завершает все управляемые сессии
 
 Вы: "help"
 Claude: выводит полный список диалоговых команд
 ```
 
-Эти команды работают на любом языке. Если вы напишете то же самое по-испански, по-японски, на иврите или любом другом языке, Claude поймёт намерение и выполнит соответствующую команду.
+**Эти команды работают на любом языке.** Если вы напишете то же самое по-испански, по-японски, на иврите или любом другом языке, Claude поймёт намерение и выполнит соответствующую команду.
 
-Введите `help` внутри любой сессии, чтобы увидеть полный список команд.
-
-### Home-сессия
-
-Home-сессия это универсальная сессия, расположенная в вашем базовом каталоге (`~/Claude` по умолчанию). Она запускается автоматически при входе в систему, если `LAUNCHAGENT_MODE=home`, предоставляя одну всегда готовую сессию Claude, доступную с телефона. Используйте её для управления всеми остальными сессиями, не запуская проектные сессии заранее.
-
-Home-сессия **защищена** по умолчанию: `--shutdown home` отказывается её останавливать без `--force`. Защита управляется маркером `.claudemux-protected` в `$BASE_DIR`, который создаётся командой `claude-mux --install`. Защищённые сессии отображают `protected` в столбце статуса; вызывающая сессия помечается `>` в столбце имени.
-
-## Что он делает
-
-Под капотом claude-mux обеспечивает:
-
-- **Постоянные сессии tmux** с включённым Remote Control, так что каждая сессия доступна из мобильного приложения Claude
-- **Возобновление разговоров**: при перезапуске возобновляется последний разговор (`claude -c`), контекст сохраняется
-- **Внедрение системного промпта**: каждая сессия получает команды для самоуправления, маршрутизации слэш-команд и осведомлённости о SSH-аккаунтах
-- **Шаблоны CLAUDE.md**: храните файлы-шаблоны (например, `web.md`, `python.md`) в `~/.claude-mux/templates/` и применяйте их к новым проектам
-- **Поддержка нескольких AI CLI**: создаёт `AGENTS.md` и `GEMINI.md` как символические ссылки на `CLAUDE.md`, чтобы Codex CLI, Gemini CLI и другие инструменты использовали одни и те же инструкции
-- **Автоматическое одобрение разрешений**: добавляет claude-mux в список разрешений каждого проекта, чтобы Claude мог выполнять команды сессий без запроса
-- **Миграция «бесхозных» процессов**: если Claude уже работает вне tmux, переносит его в управляемую сессию
-- **Удобство tmux**: поддержка мыши, буфер прокрутки 50k, буфер обмена, 256-цветный режим, расширенные клавиши, мониторинг активности, заголовки вкладок
-
-> **Примечание:** Это не то же самое, что `claude --worktree --tmux`, который создаёт сессию tmux для изолированного git worktree. claude-mux управляет постоянными сессиями для ваших настоящих каталогов проектов, с Remote Control и внедрением системного промпта.
-
-## Требования
-
-- macOS (Apple Silicon или Intel)
-- [tmux](https://github.com/tmux/tmux) — `brew install tmux`
-- [Claude Code](https://claude.ai/code) — `brew install claude`
-
-## Установка
-
-### curl (рекомендуется)
-
-```bash
-curl -fsSL https://github.com/pereljon/claude-mux/releases/latest/download/install.sh | bash
-```
-
-Загружает бинарный файл, устанавливает в `~/bin`, добавляет в `PATH` и запускает интерактивную настройку. Работает на macOS и Linux (Linux: шаг с LaunchAgent пропускается).
-
-Для обновления:
-
-```bash
-claude-mux --update     # работает из любой сессии или из терминала
-```
-
-### Homebrew (альтернатива для macOS)
-
-```bash
-brew tap pereljon/tap
-brew install claude-mux
-claude-mux --install
-```
-
-Для обновления:
-
-```bash
-brew upgrade claude-mux
-```
-
-### Вручную
-
-```bash
-./install.sh
-```
-
-`install.sh` копирует бинарный файл в `~/bin` и добавляет его в `PATH`. Затем запустите:
-
-```bash
-claude-mux --install
-```
-
-Интерактивная настройка спросит, где находятся ваши проекты Claude, нужно ли запускать home-сессию при входе и какую модель использовать. Она создаст `~/.claude-mux/config` и установит LaunchAgent.
-
-Используйте `--non-interactive`, чтобы пропустить вопросы и принять значения по умолчанию.
-
-Параметры:
-
-```bash
-claude-mux --install --non-interactive                     # пропустить вопросы, использовать значения по умолчанию
-claude-mux --install --base-dir ~/work/claude              # использовать другой базовый каталог
-claude-mux --install --launchagent-mode none               # отключить поведение LaunchAgent
-claude-mux --install --home-model haiku                    # использовать Haiku для home-сессии
-claude-mux --install --no-launchagent                      # полностью пропустить установку LaunchAgent
-```
-
-LaunchAgent выполняет `claude-mux --autolaunch` при входе в систему с задержкой 45 секунд, чтобы системные службы успели инициализироваться.
-
-## Статусы сессий
-
-| Статус | Значение |
-|--------|----------|
-| `running` | сессия tmux существует и Claude работает |
-| `protected` | то же что `running`, но сессия защищена: для остановки через `--shutdown` требуется `--force` |
-| `stopped` | сессия tmux существует, но Claude завершился |
-| `idle` | проект `.claude/` существует под `BASE_DIR`, но сессия tmux под управлением claude-mux не запущена (показывается только с `-L`) |
-
-Префикс `>` у имени сессии (например, `> home`) указывает на сессию, из которой была запущена команда списка.
-
-Запуск `claude-mux` в каталоге, где уже есть запущенная сессия, подключает к ней. К одной сессии могут подключаться несколько терминалов (стандартное поведение tmux).
-
-## Маркеры проекта
-
-Состояние конкретного проекта хранится в файлах-маркерах в корне проекта, а не в центральной конфигурации. Маркеры используют префикс `.claudemux-` и автоматически добавляются в `.gitignore` при создании в проекте под управлением git.
-
-| Маркер | Значение | CLI |
-|--------|----------|-----|
-| `.claudemux-protected` | Сессия защищается при запуске: для `--shutdown` требуется `--force` | `--protect` / `--unprotect` |
-| `.claudemux-ignore` | Проект скрывается из списков `claude-mux -L` | `--hide` / `--show` |
-
-```bash
-claude-mux --hide                    # скрыть текущий проект из списков -L
-claude-mux --hide my-project         # скрыть конкретный проект по имени сессии
-claude-mux --show my-project         # показать проект снова
-claude-mux --protect                 # защитить эту сессию от случайного завершения
-claude-mux --unprotect               # снять защиту
-claude-mux -L --hidden               # показать только скрытые проекты
-claude-mux --delete my-project       # переместить папку проекта в корзину системы (macOS)
-```
-
-Маркеры следуют за папкой проекта при переименованиях и перемещениях. Единственный шаблон `.gitignore` (`.claudemux-*`) охватывает все текущие и будущие маркеры.
-
-## Конфигурация
-
-`~/.claude-mux/config` создаётся командой `claude-mux --install` (или при первом запуске любой команды, если конфиг отсутствует). Отредактируйте файл, чтобы переопределить значения по умолчанию: сам скрипт менять не нужно.
-
-| Переменная | По умолчанию | Описание |
-|------------|--------------|----------|
-| `BASE_DIR` | `$HOME/Claude` | Корневой каталог для поиска проектов Claude (каталоги, содержащие `.claude/`) |
-| `LOG_DIR` | `$HOME/Library/Logs` | Каталог для файла `claude-mux.log` |
-| `DEFAULT_PERMISSION_MODE` | `auto` | Устанавливает `permissions.defaultMode` в каждом проекте. Допустимые: `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`. Установите `""`, чтобы отключить. |
-| `ALLOW_CROSS_SESSION_CONTROL` | `false` | При значении `true` сессии Claude могут отправлять слэш-команды в другие сессии: полезно для оркестрации нескольких агентов |
-| `TEMPLATES_DIR` | `$HOME/.claude-mux/templates` | Каталог с файлами шаблонов CLAUDE.md |
-| `DEFAULT_TEMPLATE` | `default.md` | Шаблон по умолчанию, применяемый к новым проектам (`-n`). Установите `""`, чтобы отключить. |
-| `SLEEP_BETWEEN` | `5` | Секунд между запусками сессий при использовании `-a`. Увеличьте, если регистрация RC даёт сбой. |
-| `HOME_SESSION_MODEL` | `""` | Модель для home-сессии. Допустимые: `sonnet`, `haiku`, `opus`. Пустое значение наследует значение по умолчанию Claude. |
-| `MULTI_CODER_FILES` | `"AGENTS.md GEMINI.md"` | Список файлов через пробел, создаваемых как символические ссылки на `CLAUDE.md` для других AI CLI. Установите `""`, чтобы отключить. |
-| `LAUNCHAGENT_MODE` | `home` | Поведение LaunchAgent при входе: `none` (ничего не делать) или `home` (запустить защищённую home-сессию). Устаревшее `LAUNCHAGENT_ENABLED=true` трактуется как `home`. |
-
-**Параметры сессии tmux** (все настраиваемые, все включены по умолчанию):
-
-| Переменная | По умолчанию | Описание |
-|------------|--------------|----------|
-| `TMUX_MOUSE` | `true` | Поддержка мыши: прокрутка, выделение, изменение размера панелей |
-| `TMUX_HISTORY_LIMIT` | `50000` | Размер буфера прокрутки в строках (по умолчанию в tmux: 2000) |
-| `TMUX_CLIPBOARD` | `true` | Интеграция системного буфера обмена через OSC 52 |
-| `TMUX_DEFAULT_TERMINAL` | `tmux-256color` | Тип терминала для корректной передачи цветов |
-| `TMUX_EXTENDED_KEYS` | `true` | Расширенные последовательности клавиш, включая Shift+Enter (требуется tmux 3.2+) |
-| `TMUX_ESCAPE_TIME` | `10` | Задержка клавиши escape в миллисекундах (по умолчанию в tmux: 500) |
-| `TMUX_TITLE_FORMAT` | `#S` | Формат заголовка терминала/вкладки (`#S` = имя сессии, `""` = отключить) |
-| `TMUX_MONITOR_ACTIVITY` | `true` | Уведомлять об активности в других сессиях |
-
-## Структура каталогов
-
-Проекты определяются по наличию каталога `.claude/` на любом уровне вложенности:
-
-```
-~/Claude/
-├── work/
-│   ├── project-a/          # ✓ есть .claude/ — управляется
-│   │   └── .claude/
-│   ├── project-b/          # ✓ есть .claude/ — управляется
-│   │   └── .claude/
-│   └── -archived/          # ✗ исключено (начинается с -)
-│       └── .claude/
-├── personal/
-│   ├── project-c/          # ✓ есть .claude/ — управляется
-│   │   └── .claude/
-│   ├── .hidden/            # ✗ исключено (скрытый каталог)
-│   │   └── .claude/
-│   └── project-d/          # ✗ нет .claude/ — не проект Claude
-├── deep/nested/project-e/  # ✓ есть .claude/ — найдено на любой глубине
-│   └── .claude/
-└── ignored-project/        # ✗ исключено (.claudemux-ignore)
-    ├── .claude/
-    └── .claudemux-ignore
-```
-
-Имена сессий формируются из имён каталогов: пробелы превращаются в дефисы, неалфавитно-цифровые символы (кроме дефисов) заменяются, ведущие и завершающие дефисы удаляются. Каталоги, имя которых после нормализации становится пустым, пропускаются с предупреждением в логе.
-
-## Системный промпт сессии
-
-Каждая сессия Claude запускается с `--append-system-prompt`, содержащим контекст её окружения:
-
-```
-You are running inside tmux session '<session-name>'. claude-mux path: /path/to/claude-mux
-claude-mux version: <version>
-[Update available: <new-version> (found <date>). Tell the user and suggest they say "update claude-mux" to update.]
-
-Reference lookups (run on demand if you need information not covered by trigger rules):
-  claude-mux --guide          → conversational commands list (used for "help")
-  claude-mux --commands       → full CLI reference
-  claude-mux --config-help    → config options with defaults, types, descriptions
-  claude-mux --list-templates → available CLAUDE.md templates
-
-Rules:
-- Always run claude-mux using the absolute path shown above (claude-mux path:). The bare command may not be in PATH.
-- You CAN send slash commands (/model, /compact, /clear, etc.) to this session via the -s command.
-- Always use --no-attach with -d and -n — attach is interactive only
-- --shutdown and --restart never attach — safe to run from inside a session; do NOT add --no-attach to these commands
-- Always print command output verbatim in your response text — if a command fails, report the error
-- When command output contains <assistant-must-display> tags, include the COMPLETE content verbatim
-- The 'home' session is the always-available session in the base directory. It is protected (shows 'protected' in status): --shutdown requires --force, but --restart bypasses protection. Protection is driven by the .claudemux-protected marker.
-- Disambiguate 'home': 'home session' means the claude-mux session named home; 'home folder' means ~/
-- When asked to shut down sessions, run the command directly — protected sessions are skipped automatically
-- Use claude-mux for ALL session management. Never use raw tmux, ls, or other shell commands for session management.
-- Don't guess at claude-mux flags. If you need information not in the trigger rules, run the relevant lookup.
-- When user says: ready — respond with "Session ready!" on one line. Nothing else.
-- When user says: help — run claude-mux --guide and print the output verbatim
-- When user says: status — report session name, model, permission mode, context estimate, then run claude-mux -l
-- When user says: list active sessions — run claude-mux -l
-- When user says: list all sessions — run claude-mux -L
-- When user says: list hidden projects — run claude-mux -L --hidden
-- When user says: start session SESSION — run claude-mux -d SESSION --no-attach
-- When user says: stop this session / stop session NAME — run claude-mux --shutdown
-- When user says: stop all sessions — run claude-mux --shutdown
-- When user says: restart this session / restart session NAME — run claude-mux --restart
-- When user says: restart all sessions — run claude-mux --restart
-- When user says: start new session in FOLDER — run claude-mux -n FOLDER --no-attach
-- When user says: switch this session to MODE mode / switch session NAME to MODE mode
-- When user says: switch this session to MODEL model / switch session NAME to MODEL model
-- When user says: compact/clear this session / compact/clear session NAME
-- When user says: update claude-mux — warn sessions will restart, get confirmation, run --update then --restart
-- When user says: hide this project / hide PROJECT — run claude-mux --hide
-- When user says: show this project / show PROJECT / unhide PROJECT — run claude-mux --show
-- When user says: protect this session / protect SESSION — run claude-mux --protect
-- When user says: unprotect this session / unprotect SESSION — run claude-mux --unprotect
-- When user says: is this hidden / is this protected — check for .claudemux-ignore or .claudemux-protected
-- When user says: delete this project / delete PROJECT — confirm in chat first, then run claude-mux --delete SESSION --yes
-- When user says: list templates — run claude-mux --list-templates
-- When user says: enable tips / turn on tips — run claude-mux --enable-tips
-- When user says: disable tips / turn off tips — run claude-mux --disable-tips
-- These trigger phrases work in any language.
-
-Additional capabilities (run claude-mux --commands for full syntax):
-  - Attach interactively to a session (-t — user-only, never from inside a session)
-  - Start all sessions at once (-a)
-  - New project with a CLAUDE.md template (-n DIR --template NAME, -p for parent dirs)
-  - Force-shutdown a protected session (--shutdown SESSION --force)
-  - Hide/show projects (--hide / --show)
-  - Protect/unprotect sessions (--protect / --unprotect)
-  - Move a project to trash (--delete SESSION — macOS; honors protection unless --force)
-  - Enable/disable tip-of-the-day hook (--enable-tips / --disable-tips)
-  - Show all config options (--config-help)
-  - Run interactive setup or reconfigure (--install)
-  - Remove all hooks and permissions (--uninstall)
-  - Update claude-mux (--update)
-
-Self-targeting send: claude-mux -s '<session-name>' '/command' sends slash commands to yourself.
-GitHub SSH accounts configured in ~/.ssh/config: <accounts>.
-```
-
-Home-сессия получает дополнительный контекст: описание её роли, а также триггеры самоуправления для чтения/редактирования конфигурации и шаблонов. При `ALLOW_CROSS_SESSION_CONTROL=true` команда отправки может адресовать любую сессию, а не только саму себя. Путь является абсолютным путём к скрипту в момент запуска, поэтому сессии не зависят от `PATH`.
-
-## Справочник CLI
-
-Напрямую эти команды нужны редко: Claude выполняет их за вас внутри сессий. Они доступны для скриптов, автоматизации или когда вы работаете вне сессии.
-
-```bash
-# Запуск и подключение
-claude-mux                       # запустить Claude в текущем каталоге и подключиться
-claude-mux ~/projects/my-app     # запустить Claude в каталоге и подключиться
-claude-mux -d ~/projects/my-app  # то же самое (явная форма)
-claude-mux -t my-app             # подключиться к существующей сессии tmux
-
-# Создание новых проектов
-claude-mux -n ~/projects/app     # создать новый проект Claude и подключиться
-claude-mux -n ~/new/path/app -p  # то же самое, создавая каталог и его родителей
-claude-mux -n ~/app --template web        # новый проект с конкретным шаблоном CLAUDE.md
-claude-mux -n ~/app --no-multi-coder      # новый проект без символических ссылок AGENTS.md/GEMINI.md
-
-# Управление сессиями
-claude-mux -l                    # список сессий по статусу (active, running, stopped)
-claude-mux -L                    # список всех проектов (active + idle)
-claude-mux -L --hidden           # показать только скрытые проекты
-claude-mux -s my-app '/model sonnet'      # отправить слэш-команду в сессию
-claude-mux --shutdown my-app              # остановить конкретную сессию
-claude-mux --shutdown                     # остановить все управляемые сессии
-claude-mux --shutdown home --force        # остановить защищённую home-сессию
-claude-mux --restart my-app              # перезапустить конкретную сессию
-claude-mux --restart                     # перезапустить все запущенные сессии
-claude-mux --permission-mode plan my-app  # перезапустить сессию в plan-режиме
-claude-mux -a                    # запустить все управляемые сессии в BASE_DIR
-
-# Маркеры проекта (все команды используют имена сессий, а не пути)
-claude-mux --hide                # скрыть текущий проект из списков -L
-claude-mux --hide my-project     # скрыть конкретный проект по имени сессии
-claude-mux --show my-project     # показать проект снова
-claude-mux --protect             # защитить эту сессию от случайного завершения
-claude-mux --unprotect           # снять защиту
-claude-mux --delete my-project           # переместить папку проекта в корзину системы (macOS)
-claude-mux --delete my-project --yes     # то же, без запроса подтверждения
-claude-mux --rename my-project new-name  # переименовать каталог проекта
-claude-mux --move my-project ~/Claude/work  # переместить проект в другой родительский каталог
-
-# Прочее
-claude-mux --list-templates      # показать доступные шаблоны CLAUDE.md
-claude-mux --guide               # показать диалоговые команды для использования внутри сессий
-claude-mux --commands            # показать полный справочник CLI
-claude-mux --config-help         # показать все параметры конфигурации с их значениями по умолчанию и описаниями
-claude-mux --install             # интерактивная настройка: config + LaunchAgent
-claude-mux --update              # обновить до последней версии
-claude-mux --dry-run             # показать действия без выполнения
-claude-mux --version             # вывести версию
-claude-mux --help                # показать все параметры
-
-# Следить за логом
-tail -f ~/Library/Logs/claude-mux.log
-```
-
-При запуске из терминала вывод дублируется на stdout в реальном времени. При запуске через LaunchAgent вывод идёт только в файл лога.
-
-## Решение проблем
-
-### Сессии показывают "Not logged in · Run /login"
-
-Это происходит при первом запуске, если связка ключей macOS заблокирована (часто бывает, когда скрипт стартует до разблокировки связки ключей после входа в систему). Решение:
-
-```bash
-# Разблокировать связку ключей в обычном терминале
-security unlock-keychain
-
-# Затем завершить аутентификацию в любой запущенной сессии
-claude-mux -t <any-session>
-# Запустить /login и пройти процесс аутентификации в браузере
-```
-
-После однократного завершения аутентификации остановите и перезапустите все сессии: они автоматически подхватят сохранённые учётные данные.
-
-### Сессии не появляются в Claude Code Remote
-
-Сессии должны быть аутентифицированы (не показывать "Not logged in"). После чистого аутентифицированного запуска они должны появиться в списке RC в течение нескольких секунд.
-
-### Многострочный ввод в tmux
-
-Команда `/terminal-setup` не работает внутри tmux. claude-mux включает в tmux `extended-keys` по умолчанию (`TMUX_EXTENDED_KEYS=true`), что обеспечивает поддержку Shift+Enter в большинстве современных терминалов. Если Shift+Enter не работает, используйте `\` + Return для ввода переноса строки в запросе.
-
-### "Session ready!" при старте сессии
-
-Когда сессия запускается или перезапускается, claude-mux автоматически отправляет сообщение `Ready?` после завершения загрузки Claude. Внедрённый промпт указывает Claude ответить "Session ready!" и ничем больше. Это подтверждает, что сессия жива и внедрение работает.
-
-### Слэш-команды через Remote Control
-
-Слэш-команды (например, `/model`, `/clear`) [не поддерживаются штатно](https://github.com/anthropics/claude-code/issues/30674) в RC-сессиях. claude-mux обходит это: в каждую сессию внедряется `claude-mux -s`, чтобы Claude мог отправлять слэш-команды самому себе через tmux.
-
-## Логи
-
-- `~/Library/Logs/claude-mux.log` — все действия скрипта с метками времени UTC (настраивается через `LOG_DIR`)
-
-Для низкоуровневой отладки LaunchAgent используйте Console.app или `log show`.
+**Введите `help` внутри любой сессии, чтобы увидеть полный список команд.**
 
 ## Дополнительно
 
-- [FAQ](../FAQ.md) — частые вопросы о claude-mux
-- [Известные проблемы](../ISSUES.md) — открытые баги, планируемые функции и решённые проблемы
-- [Журнал изменений](../CHANGELOG.md) — что изменилось в каждом выпуске
+- [Справочник CLI](../docs/CLI.md) - полный справочник команд для скриптов и автоматизации
+- [Руководство](../docs/guide.md) - конфигурация, детали сессий, внутренние механизмы и решение проблем
+- [Варианты установки](../docs/INSTALL.md) - Homebrew, ручная установка, настройка LaunchAgent
+- [FAQ](../docs/FAQ.md) - частые вопросы о claude-mux
+- [Известные проблемы](../docs/ISSUES.md) - открытые баги, планируемые функции и решённые проблемы
+- [Журнал изменений](../CHANGELOG.md) - что изменилось в каждом выпуске

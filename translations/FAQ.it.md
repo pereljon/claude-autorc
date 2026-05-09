@@ -1,6 +1,6 @@
 # FAQ
 
-[English](../FAQ.md) · [Español](FAQ.es.md) · [Français](FAQ.fr.md) · [Deutsch](FAQ.de.md) · [Português](FAQ.pt-BR.md) · [日本語](FAQ.ja.md) · [한국어](FAQ.ko.md) · **Italiano** · [Русский](FAQ.ru.md) · [中文](FAQ.zh-CN.md) · [עברית](FAQ.he.md) · [العربية](FAQ.ar.md) · [हिन्दी](FAQ.hi.md)
+[English](../docs/FAQ.md) · [Español](FAQ.es.md) · [Français](FAQ.fr.md) · [Deutsch](FAQ.de.md) · [Português](FAQ.pt-BR.md) · [日本語](FAQ.ja.md) · [한국어](FAQ.ko.md) · **Italiano** · [Русский](FAQ.ru.md) · [中文](FAQ.zh-CN.md) · [עברית](FAQ.he.md) · [العربية](FAQ.ar.md) · [हिन्दी](FAQ.hi.md)
 
 ## Cos'e claude-mux?
 
@@ -49,7 +49,7 @@ I template sono file CLAUDE.md riutilizzabili salvati in `~/.claude-mux/template
 
 Crea un template: "salva questo come template con nome web" (copia il CLAUDE.md del progetto corrente in `~/.claude-mux/templates/web.md`).
 
-Usa un template: `claude-mux -n ~/progetti/mia-app --template web` oppure dall'interno di una sessione: "crea un nuovo progetto chiamato mia-app usando il template web".
+Usa un template: `claude-mux -n ~/progetti/mia-app --template web` oppure dall'interno di una sessione: "crea un nuovo progetto chiamato my-app usando il template web".
 
 Elenca i template: "list templates" oppure `claude-mux --list-templates`.
 
@@ -116,9 +116,13 @@ Aggiorna con `brew upgrade claude-mux`. Nota: se hai installato tramite Homebrew
 
 `claude --worktree --tmux` crea una sessione tmux per un worktree git isolato, progettato per attivita di codifica parallele. claude-mux gestisce sessioni persistenti per le directory effettive dei tuoi progetti, con Remote Control abilitato, iniezione del system prompt per l'autogestione, ripresa delle conversazioni e gestione del ciclo di vita delle sessioni. Risolvono problemi diversi.
 
+## In cosa e diverso da Claude Cowork Dispatch?
+
+Dispatch avvia attivita dall'app desktop di Claude, ma richiede che l'app sia in esecuzione e non e legato a un progetto specifico. claude-mux gestisce sessioni persistenti, legate ai progetti, che sopravvivono ai riavvii e sono accessibili da ovunque tramite Remote Control - senza bisogno dell'app desktop.
+
 ## Perche le sessioni mostrano "Not logged in"?
 
-Questo accade al primo avvio se il keychain di macOS e bloccato, cosa comune quando il LaunchAgent si avvia prima che tu sblocchi il keychain dopo il login. Risolvilo eseguendo `security unlock-keychain` in un terminale normale, poi collegati a qualsiasi sessione (`claude-mux -t <nome>`) e esegui `/login` per completare il flusso di autenticazione nel browser. Dopo, riavvia tutte le sessioni e prenderanno le credenziali memorizzate.
+Questo accade al primo avvio se il keychain di macOS e bloccato, cosa comune quando il LaunchAgent si avvia prima che tu sblocchi il keychain dopo il login. Risolvilo eseguendo `security unlock-keychain` in un terminale normale, poi collegati a qualsiasi sessione (`claude-mux -t <nome>`) ed esegui `/login` per completare il flusso di autenticazione nel browser. Dopo, riavvia tutte le sessioni e prenderanno le credenziali memorizzate.
 
 ## Piu terminali possono collegarsi alla stessa sessione?
 

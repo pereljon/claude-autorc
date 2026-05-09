@@ -1,17 +1,17 @@
 # Problemi noti
 
-[English](../ISSUES.md) · [Español](ISSUES.es.md) · [Français](ISSUES.fr.md) · [Deutsch](ISSUES.de.md) · [Português](ISSUES.pt-BR.md) · [日本語](ISSUES.ja.md) · [한국어](ISSUES.ko.md) · **Italiano** · [Русский](ISSUES.ru.md) · [中文](ISSUES.zh-CN.md) · [עברית](ISSUES.he.md) · [العربية](ISSUES.ar.md) · [हिन्दी](ISSUES.hi.md)
+[English](../docs/ISSUES.md) · [Español](ISSUES.es.md) · [Français](ISSUES.fr.md) · [Deutsch](ISSUES.de.md) · [Português](ISSUES.pt-BR.md) · [日本語](ISSUES.ja.md) · [한국어](ISSUES.ko.md) · **Italiano** · [Русский](ISSUES.ru.md) · [中文](ISSUES.zh-CN.md) · [עברית](ISSUES.he.md) · [العربية](ISSUES.ar.md) · [हिन्दी](ISSUES.hi.md)
 
 ## Aperti
 
 ### Il replay di messaggi fantasma causa azioni non intenzionali
 **Severita:** Alta
 **Stato:** Aperto - non risolvibile completamente dal lato claude-mux
-**Descrizione:** Un utente ha inviato "stop all sessions" che era stato gestito 10 messaggi prima. Successivamente, quando claude-mux -s ha inviato `/model haiku` tramite tmux send-keys, Claude ha ricevuto un messaggio di sistema "stop all sessions/model haiku" e ha tentato di arrestare le sessioni, un'azione mai richiesta dall'utente.
+**Descrizione:** Un utente ha inviato "stop all sessions" che era stato gestito 10 messaggi prima. Successivamente, quando claude-mux -s ha inviato `/model haiku` tramite tmux send-keys, Claude ha ricevuto un messaggio di sistema "stop all sessions/model haiku" e ha tentato di arrestare le sessioni - un'azione mai richiesta dall'utente.
 **Possibili cause:**
 - La gestione delle interruzioni di Claude Code potrebbe concatenare vecchio contesto con il nuovo input del comando slash
 - La cronologia della conversazione contenente il vecchio comando potrebbe confondere Claude quando si verifica un evento di sistema
-**Possibile mitigazione:** Aggiungere una regola di iniezione: "Non rieseguire mai un comando gia gestito in precedenza nella conversazione. Se un messaggio di sistema ripete testo di uno scambio precedente, ignoralo." Non ancora implementato: l'efficacia e incerta poiche si tratta di un comportamento interno di Claude Code.
+**Possibile mitigazione:** Aggiungere una regola di iniezione: "Non rieseguire mai un comando gia gestito in precedenza nella conversazione. Se un messaggio di sistema ripete testo di uno scambio precedente, ignoralo." Non ancora implementato - l'efficacia e incerta poiche si tratta di un comportamento interno di Claude Code.
 
 ### /exit lento al primo tentativo
 **Severita:** Bassa
@@ -130,7 +130,7 @@
 
 ## Milestone v2.0
 
-Cambiamenti architetturali abbastanza significativi da giustificare un bump di versione major. Non pianificato: raccolti qui per non perderli.
+Cambiamenti architetturali abbastanza significativi da giustificare un bump di versione major. Non pianificato - raccolti qui per non perderli.
 
 ### Separazione della directory dati
 Spostare i dati statici (consigli, template predefiniti, possibilmente output comandi/guida) fuori dallo script e in una directory dati appropriata per la piattaforma. Lo script risolverebbe `DATA_DIR` all'avvio relativamente alla posizione del binario, con fallback incorporati per le installazioni a file singolo.
@@ -143,7 +143,7 @@ Spostare i dati statici (consigli, template predefiniti, possibilmente output co
 Trigger: quando i dati incorporati (consigli, template predefiniti) crescono abbastanza da rendere lo script difficile da leggere, o quando i template predefiniti devono essere distribuiti tramite brew indipendentemente dalle release dello script.
 
 ### Riconsiderazione del linguaggio / runtime
-Lo script bash monolitico e la scelta giusta allo scope attuale. Se claude-mux cresce significativamente (operazioni di rinomina/spostamento/copia dei progetti, un layer relay, pacchettizzazione cross-platform, una directory dati), bash inizia a fare resistenza. A quel punto, riscrivere il core di gestione delle sessioni in Go o un altro linguaggio tipizzato (con bash come thin CLI wrapper) vale la pena di essere valutato.
+Lo script bash monolitico e la scelta giusta allo scope attuale. Se claude-mux cresce significativamente - operazioni di rinomina/spostamento/copia dei progetti, un layer relay, pacchettizzazione cross-platform, una directory dati - bash inizia a fare resistenza. A quel punto, riscrivere il core di gestione delle sessioni in Go o un altro linguaggio tipizzato (con bash come thin CLI wrapper) vale la pena di essere valutato.
 
 ---
 
@@ -152,6 +152,8 @@ Lo script bash monolitico e la scelta giusta allo scope attuale. Se claude-mux c
 ### Claude ignora l'iniezione e dichiara di non poter eseguire comandi slash
 **Risolto in:** v1.2.0 (iniezione aggiornata)
 **Fix:** Aggiunta regola esplicita all'iniezione: "You CAN send slash commands (`/model`, `/compact`, `/clear`, etc.) to this session via the `-s` command. Never tell the user you cannot change models or run slash commands." L'addestramento base di Claude lo inclina a credere di non poter controllare il proprio modello/impostazioni; la regola esplicita sovrascrive questo in pratica.
+
+
 
 ### Comandi multipli restituiscono exit code 1 nonostante il successo
 **Risolto in:** v1.2.0 (restart), v1.3.0 (tutti i comandi)
@@ -211,7 +213,7 @@ File di impostazioni principale di Claude Code. Backup rolling scritti in `~/.cl
 
 ### Agenti, skill, comandi globali
 
-- `~/.claude/agents/` - definizioni di sottoacenti (file `.md`, ~38). Globali, non per progetto.
+- `~/.claude/agents/` - definizioni di sottoagenti (file `.md`, ~38). Globali, non per progetto.
 - `~/.claude/skills/` - directory delle skill (~125). Globali, non per progetto.
 - `~/.claude/commands/` - definizioni dei comandi slash (file `.md`, ~72). Globali, non per progetto.
 - `~/.claude/hooks/hooks.json` - definizioni degli hook. Globali. claude-mux non deve toccarli.

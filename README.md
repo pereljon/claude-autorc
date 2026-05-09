@@ -16,9 +16,9 @@ Then start a session:
 claude-mux ~/path/to/your/project
 ```
 
-That's it. You're in a persistent, session-aware Claude session with Remote Control enabled. From here, everything is conversational.
+The installer asks if you want a home session at login. If you accept, a protected Claude session launches automatically every time you log in - always reachable from your phone or any Remote Control client, even if you never open terminal.
 
-The installer asks if you want a home session at login. If you accept, a protected Claude session launches automatically every time you log in - always reachable from your phone or any Remote Control client, even if you never open a terminal.
+That's it! You're in a persistent, session-aware Claude session with Remote Control enabled. **From here, everything is conversational.**
 
 [Homebrew, manual install, and other options](docs/INSTALL.md)
 
@@ -125,9 +125,9 @@ You: "help"
 Claude: prints the full list of conversational commands
 ```
 
-These commands work in any language. If you type the equivalent in Spanish, Japanese, Hebrew, or any other language, Claude infers the intent and runs the matching command.
+**These commands work in any language.** If you type the equivalent in Spanish, Japanese, Hebrew, or any other language, Claude infers the intent and runs the matching command.
 
-Type `help` inside any session to see the full command list.
+**Type `help` inside any session to see the full command list.**
 
 ## More
 

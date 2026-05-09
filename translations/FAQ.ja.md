@@ -1,6 +1,6 @@
 # よくある質問
 
-[English](../FAQ.md) · [Español](FAQ.es.md) · [Français](FAQ.fr.md) · [Deutsch](FAQ.de.md) · [Português](FAQ.pt-BR.md) · **日本語** · [한국어](FAQ.ko.md) · [Italiano](FAQ.it.md) · [Русский](FAQ.ru.md) · [中文](FAQ.zh-CN.md) · [עברית](FAQ.he.md) · [العربية](FAQ.ar.md) · [हिन्दी](FAQ.hi.md)
+[English](../docs/FAQ.md) · [Español](FAQ.es.md) · [Français](FAQ.fr.md) · [Deutsch](FAQ.de.md) · [Português](FAQ.pt-BR.md) · **日本語** · [한국어](FAQ.ko.md) · [Italiano](FAQ.it.md) · [Русский](FAQ.ru.md) · [中文](FAQ.zh-CN.md) · [עברית](FAQ.he.md) · [العربية](FAQ.ar.md) · [हिन्दी](FAQ.hi.md)
 
 ## claude-mux とは？
 
@@ -116,6 +116,10 @@ claude-mux --install
 
 `claude --worktree --tmux` は隔離された git worktree 用に tmux セッションを作成するもので、並列コーディングタスク向けに設計されています。claude-mux は実際のプロジェクトディレクトリの永続セッションを管理し、Remote Control の有効化、セルフ管理のためのシステムプロンプト注入、会話再開、セッションライフサイクル管理を提供します。解決する問題が異なります。
 
+## Claude Cowork Dispatch との違いは？
+
+Dispatch は Claude デスクトップアプリからタスクを起動しますが、アプリが動作中である必要があり、特定のプロジェクトにバインドされません。claude-mux は永続的でプロジェクトに紐付いたセッションを管理し、再起動後も維持され、Remote Control 経由でどこからでもアクセスでき、デスクトップアプリは不要です。
+
 ## セッションに「Not logged in」と表示されるのはなぜ？
 
 初回起動時に macOS のキーチェーンがロックされている場合に発生します。ログイン後にキーチェーンがアンロックされる前に LaunchAgent が起動するケースで一般的です。通常のターミナルで `security unlock-keychain` を実行し、任意のセッションにアタッチ (`claude-mux -t <name>`) して `/login` でブラウザ認証フローを完了してください。その後、全セッションを再起動すれば、保存された認証情報を自動的に拾います。
@@ -150,7 +154,7 @@ claude-mux --uninstall
 
 ## スラッシュコマンドは Remote Control で動作しますか？
 
-ネイティブには動作しません。Claude Code は RC セッションでスラッシュコマンド (`/model`、`/clear` 等) を[サポートしていません](https://github.com/anthropics/claude-code/issues/30674)。claude-mux は各セッションに `claude-mux -s` を注入して回避しています。Claude が tmux 経由で自身にスラッシュコマンドを送信できます。「Haiku に切り替えて」や「このセッションをコンパクト化して」と言うだけで Claude が処理します。
+ネイティブには動作しません。Claude Code は RC セッションでスラッシュコマンド (`/model`、`/clear` 等) をサポートしていません。claude-mux は各セッションに `claude-mux -s` を注入して回避しています。Claude が tmux 経由で自身にスラッシュコマンドを送信できます。「Haiku に切り替えて」や「このセッションをコンパクト化して」と言うだけで Claude が処理します。
 
 ## セッション内でテキストを選択できない
 

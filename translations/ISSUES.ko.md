@@ -1,6 +1,6 @@
 # 알려진 이슈
 
-[English](../ISSUES.md) · [Español](ISSUES.es.md) · [Français](ISSUES.fr.md) · [Deutsch](ISSUES.de.md) · [Português](ISSUES.pt-BR.md) · [日本語](ISSUES.ja.md) · **한국어** · [Italiano](ISSUES.it.md) · [Русский](ISSUES.ru.md) · [中文](ISSUES.zh-CN.md) · [עברית](ISSUES.he.md) · [العربية](ISSUES.ar.md) · [हिन्दी](ISSUES.hi.md)
+[English](../docs/ISSUES.md) · [Español](ISSUES.es.md) · [Français](ISSUES.fr.md) · [Deutsch](ISSUES.de.md) · [Português](ISSUES.pt-BR.md) · [日本語](ISSUES.ja.md) · **한국어** · [Italiano](ISSUES.it.md) · [Русский](ISSUES.ru.md) · [中文](ISSUES.zh-CN.md) · [עברית](ISSUES.he.md) · [العربية](ISSUES.ar.md) · [हिन्दी](ISSUES.hi.md)
 
 ## 미해결
 
@@ -143,7 +143,7 @@
 트리거: 내장 데이터(팁, 기본 템플릿)가 스크립트를 읽기 어렵게 만들 정도로 커지거나, 기본 템플릿이 스크립트 릴리스와 독립적으로 brew를 통해 배포되어야 할 때.
 
 ### 언어 / 런타임 재검토
-모놀리식 bash 스크립트는 현재 규모에서는 올바른 선택입니다. claude-mux가 크게 성장한다면 -- 프로젝트 이름 변경/이동/복사 작업, 릴레이 레이어, 크로스 플랫폼 패키징, 데이터 디렉터리 -- bash가 버티기 어려워집니다. 그 시점에서 세션 관리 코어를 Go나 다른 타입 언어로 재작성하고(bash는 얇은 CLI 래퍼로) 평가할 가치가 있습니다.
+모놀리식 bash 스크립트는 현재 규모에서는 올바른 선택입니다. claude-mux가 크게 성장한다면 - 프로젝트 이름 변경/이동/복사 작업, 릴레이 레이어, 크로스 플랫폼 패키징, 데이터 디렉터리 - bash가 버티기 어려워집니다. 그 시점에서 세션 관리 코어를 Go나 다른 타입 언어로 재작성하고(bash는 얇은 CLI 래퍼로) 평가할 가치가 있습니다.
 
 ---
 
@@ -184,37 +184,37 @@
 Claude Code가 사용된 각 작업 디렉터리당 하나의 하위 디렉터리. 절대 경로를 인코딩하여 이름을 지정: `/` -> `-`, 공백 및 특수 문자 -> `-`. 손실 있지만 읽기 가능.
 
 각 프로젝트 폴더의 내용:
-- `<uuid>.jsonl` -- 해당 세션의 전체 대화 트랜스크립트. 대화당 하나의 파일.
-- `<uuid>/` -- 대화와 관련된 아티팩트(작업, 계획)의 하위 디렉터리. UUID가 `.jsonl` 파일과 일치.
-- `memory/` -- 영구 크로스 세션 메모리 파일(프론트매터가 있는 마크다운). 프로젝트에 메모리가 기록된 경우에만 존재.
+- `<uuid>.jsonl` - 해당 세션의 전체 대화 트랜스크립트. 대화당 하나의 파일.
+- `<uuid>/` - 대화와 관련된 아티팩트(작업, 계획)의 하위 디렉터리. UUID가 `.jsonl` 파일과 일치.
+- `memory/` - 영구 크로스 세션 메모리 파일(프론트매터가 있는 마크다운). 프로젝트에 메모리가 기록된 경우에만 존재.
 
 작업 디렉터리와 기록 사이의 연결은 순전히 인코딩된 폴더 이름입니다. 이 폴더 이름을 변경하지 않고 프로젝트 디렉터리를 이름 변경하거나 이동하면 Claude Code가 기록 없이 새로 시작합니다.
 
-**인코딩 규칙:** 모든 `/`, 공백, 특수 문자가 `-`로 대체된 절대 경로. 선행 `/`는 선행 `-`가 됩니다. 인코딩은 손실 있음 -- 연속된 특수 문자와 슬래시에 인접한 공백 모두 `-`가 되므로 원본을 항상 완벽하게 복원할 수 없습니다.
+**인코딩 규칙:** 모든 `/`, 공백, 특수 문자가 `-`로 대체된 절대 경로. 선행 `/`는 선행 `-`가 됩니다. 인코딩은 손실 있음 - 연속된 특수 문자와 슬래시에 인접한 공백 모두 `-`가 되므로 원본을 항상 완벽하게 복원할 수 없습니다.
 
 ### 병렬 관찰 레지스트리: `~/.claude/homunculus/`
 
-프로젝트별 도구 수준 이벤트를 추적하는 별도의 시스템. 핵심 Claude Code 기록의 일부가 아님 -- 모니터링/학습 레이어로 보입니다.
+프로젝트별 도구 수준 이벤트를 추적하는 별도의 시스템. 핵심 Claude Code 기록의 일부가 아님 - 모니터링/학습 레이어로 보입니다.
 
-- `projects.json` -- 짧은 16진수 UUID(`d6b3aef60967` 등)로 키가 지정된 알려진 모든 프로젝트의 레지스트리. 각 항목: `id`, `name`, `root` (절대 경로), `remote`, `created_at`, `last_seen`.
-- `projects/<uuid>/project.json` -- 프로젝트별 메타데이터(레지스트리 항목과 동일한 필드).
-- `projects/<uuid>/observations.jsonl` -- 타임스탬프가 있는 `tool_start`/`tool_complete` 이벤트: 도구 이름, 세션 UUID, 프로젝트 이름/ID, 입력/출력 스니펫.
-- `projects/<uuid>/instincts` -- 파생된 패턴(내용 불명, 계산된 것으로 추정).
-- `projects/<uuid>/evolved` -- 진화/학습된 상태(내용 불명).
-- `projects/<uuid>/observations.archive` -- 아카이브된 이전 관찰.
+- `projects.json` - 짧은 16진수 UUID(`d6b3aef60967` 등)로 키가 지정된 알려진 모든 프로젝트의 레지스트리. 각 항목: `id`, `name`, `root` (절대 경로), `remote`, `created_at`, `last_seen`.
+- `projects/<uuid>/project.json` - 프로젝트별 메타데이터(레지스트리 항목과 동일한 필드).
+- `projects/<uuid>/observations.jsonl` - 타임스탬프가 있는 `tool_start`/`tool_complete` 이벤트: 도구 이름, 세션 UUID, 프로젝트 이름/ID, 입력/출력 스니펫.
+- `projects/<uuid>/instincts` - 파생된 패턴(내용 불명, 계산된 것으로 추정).
+- `projects/<uuid>/evolved` - 진화/학습된 상태(내용 불명).
+- `projects/<uuid>/observations.archive` - 아카이브된 이전 관찰.
 
 **`~/.claude/projects/`와의 핵심 차이:** 인코딩된 경로가 아닌 짧은 16진수 UUID를 키로 사용합니다. `root` 필드에 절대 경로가 있습니다. 프로젝트 경로를 변경하는 작업(이름 변경, 이동)은 `projects.json`과 `projects/<uuid>/project.json` 모두에서 `root`를 업데이트해야 합니다.
 
 ### 전역 설정: `~/.claude/settings.json`
 
-주요 Claude Code 설정 파일. 롤링 백업이 `~/.claude/backups/`에 `~/.claude.json.backup.<timestamp>`로 기록됩니다 -- 활발한 사용 중 시간당 여러 개. claude-mux는 이 파일을 건드리지 않아야 합니다.
+주요 Claude Code 설정 파일. 롤링 백업이 `~/.claude/backups/`에 `~/.claude.json.backup.<timestamp>`로 기록됩니다 - 활발한 사용 중 시간당 여러 개. claude-mux는 이 파일을 건드리지 않아야 합니다.
 
 ### 전역 에이전트, 스킬, 명령
 
-- `~/.claude/agents/` -- 서브에이전트 정의(`.md` 파일, ~38개). 전역, 프로젝트별이 아님.
-- `~/.claude/skills/` -- 스킬 디렉터리(~125개). 전역, 프로젝트별이 아님.
-- `~/.claude/commands/` -- 슬래시 명령 정의(`.md` 파일, ~72개). 전역, 프로젝트별이 아님.
-- `~/.claude/hooks/hooks.json` -- 훅 정의. 전역. claude-mux는 이것을 건드리지 않아야 합니다.
+- `~/.claude/agents/` - 서브에이전트 정의(`.md` 파일, ~38개). 전역, 프로젝트별이 아님.
+- `~/.claude/skills/` - 스킬 디렉터리(~125개). 전역, 프로젝트별이 아님.
+- `~/.claude/commands/` - 슬래시 명령 정의(`.md` 파일, ~72개). 전역, 프로젝트별이 아님.
+- `~/.claude/hooks/hooks.json` - 훅 정의. 전역. claude-mux는 이것을 건드리지 않아야 합니다.
 
 ### 잠재적 향후 기능
 

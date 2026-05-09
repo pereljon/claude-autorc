@@ -1,24 +1,24 @@
 # FAQ
 
-[English](../FAQ.md) · [Español](FAQ.es.md) · [Français](FAQ.fr.md) · **Deutsch** · [Português](FAQ.pt-BR.md) · [日本語](FAQ.ja.md) · [한국어](FAQ.ko.md) · [Italiano](FAQ.it.md) · [Русский](FAQ.ru.md) · [中文](FAQ.zh-CN.md) · [עברית](FAQ.he.md) · [العربية](FAQ.ar.md) · [हिन्दी](FAQ.hi.md)
+[English](../docs/FAQ.md) · [Español](FAQ.es.md) · [Français](FAQ.fr.md) · **Deutsch** · [Português](FAQ.pt-BR.md) · [日本語](FAQ.ja.md) · [한국어](FAQ.ko.md) · [Italiano](FAQ.it.md) · [Русский](FAQ.ru.md) · [中文](FAQ.zh-CN.md) · [עברית](FAQ.he.md) · [العربية](FAQ.ar.md) · [हिन्दी](FAQ.hi.md)
 
 ## Was ist claude-mux?
 
-Ein Shell-Skript, das Claude Code in tmux für persistente Sitzungen kapselt. Sitzungen überleben das Schließen des Terminals, nehmen den Konversationskontext beim Neustart wieder auf und sind über die Claude-Mobile-App via Remote Control erreichbar. Du verwaltest alles, indem du innerhalb einer Sitzung mit Claude sprichst.
+Ein Shell-Skript, das Claude Code in tmux fuer persistente Sitzungen einkapselt. Sitzungen ueberleben das Schliessen des Terminals, setzen den Konversationskontext bei Neustart fort und sind ueber die Claude-Mobile-App per Remote Control erreichbar. Du verwaltest alles, indem du innerhalb einer Sitzung mit Claude sprichst.
 
-## Funktioniert es auf Linux?
+## Funktioniert es unter Linux?
 
-Noch nicht. Nur macOS (Apple Silicon und Intel). Linux-Unterstützung ist für v2.0 geplant. Der Installer läuft auf Linux, überspringt aber das LaunchAgent-Setup und gibt einen Hinweis aus. Die Binärdatei selbst funktioniert, es gibt aber noch keinen systemd-Dienst oder vergleichbaren Autostart-Mechanismus.
+Noch nicht. Nur macOS (Apple Silicon und Intel). Linux-Unterstuetzung ist fuer v2.0 geplant. Der Installer laeuft unter Linux, ueberspringt aber die LaunchAgent-Einrichtung und gibt einen Hinweis aus. Das Binary selbst funktioniert, aber es gibt noch keinen systemd-Service oder vergleichbaren Autostart-Mechanismus.
 
 ## Was ist die Home-Sitzung?
 
-Die Home-Sitzung ist eine Allzweck-Claude-Sitzung, die in deinem Basisverzeichnis lebt (`~/Claude` standardmäßig). Wenn `LAUNCHAGENT_MODE=home` (der Standard), startet sie beim Login automatisch und läuft den ganzen Tag. Sie ist standardmäßig **geschützt**: `--shutdown home` weigert sich, sie ohne `--force` zu beenden.
+Die Home-Sitzung ist eine Allzweck-Claude-Sitzung in deinem Basisverzeichnis (`~/Claude` standardmaessig). Wenn `LAUNCHAGENT_MODE=home` (Standard), startet sie automatisch beim Login und laeuft den ganzen Tag. Sie ist standardmaessig **geschuetzt**, das heisst `--shutdown home` verweigert das Beenden ohne `--force`.
 
-Verwende die Home-Sitzung als deinen immer verfügbaren Einstiegspunkt von der Claude-Mobile-App. Von dort aus kannst du Projekte auflisten, andere Sitzungen starten, die Konfiguration verwalten und allgemeine Arbeit erledigen, die nicht zu einem bestimmten Projekt gehört.
+Nutze die Home-Sitzung als deinen staendig verfuegbaren Einstiegspunkt ueber die Claude-Mobile-App. Von dort kannst du Projekte auflisten, andere Sitzungen starten, Konfiguration verwalten und allgemeine Arbeiten erledigen, die zu keinem bestimmten Projekt gehoeren.
 
 ## Was ist Remote Control?
 
-Remote Control (RC) ist ein Feature von Claude Code, mit dem du dich von der Claude-Mobile-App oder Claude Desktop aus mit einer laufenden Claude-Sitzung verbinden kannst. claude-mux startet jede Sitzung mit aktiviertem `--remote-control`, sodass alle Sitzungen automatisch in der RC-Liste erscheinen. Einmal verbunden, sprichst du mit Claude genauso wie im Terminal. claude-mux umgeht auch RC-Einschränkungen wie nicht funktionierende Slash-Befehle, indem sie über tmux geroutet werden.
+Remote Control (RC) ist eine Claude Code-Funktion, die es dir erlaubt, dich von der Claude-Mobile-App oder Claude Desktop mit einer laufenden Claude-Sitzung zu verbinden. claude-mux startet jede Sitzung mit `--remote-control`, sodass alle Sitzungen automatisch in der RC-Liste erscheinen. Sobald verbunden, sprichst du mit Claude genau wie im Terminal. claude-mux umgeht auch RC-Einschraenkungen wie nicht funktionierende Slash Commands, indem es sie ueber tmux leitet.
 
 ## Was sind Berechtigungsmodi?
 
@@ -26,46 +26,46 @@ Claude Code hat vier Berechtigungsmodi, die steuern, wie viel Autonomie Claude h
 
 | Modus | Verhalten |
 |-------|-----------|
-| `default` | Claude fragt vor dem Ausführen von Befehlen oder Bearbeiten von Dateien |
-| `acceptEdits` | Claude wendet Dateiänderungen automatisch an, fragt aber vor Shell-Befehlen |
-| `plan` | Claude kann nur lesen und planen, keine Schreibvorgänge oder Befehle |
-| `bypassPermissions` | Claude führt alles ohne Rückfrage aus (erfordert Bestätigung beim ersten Start) |
+| `default` | Claude fragt vor dem Ausfuehren von Befehlen oder dem Bearbeiten von Dateien |
+| `acceptEdits` | Claude wendet Dateibearbeitungen automatisch an, fragt aber vor Shell-Befehlen |
+| `plan` | Claude kann nur lesen und planen, keine Schreibvorgaenge oder Befehle |
+| `bypassPermissions` | Claude fuehrt alles ohne Nachfrage aus (erfordert Bestaetigung beim ersten Start) |
 
-Setze den Standard für alle Projekte über `DEFAULT_PERMISSION_MODE` in der Konfiguration. Wechsle in einer laufenden Sitzung durch die Eingabe von z. B. "switch this session to plan mode" (oder einem anderen Modusnamen). "yolo" ist ein Alias für `bypassPermissions`.
+Setze den Standard fuer alle Projekte ueber `DEFAULT_PERMISSION_MODE` in der Konfiguration. Wechsle eine laufende Sitzung, indem du sagst "wechsle diese Sitzung in den Plan-Modus" (oder jeden anderen Modusnamen). "yolo" ist ein Alias fuer `bypassPermissions`.
 
-Der Wechsel zu `bypassPermissions` aus einem anderen Modus verwendet Shift+Tab-Navigation und erfordert keinen Neustart. Der Wechsel von `bypassPermissions` zu einem anderen Modus erfordert einen Neustart, den claude-mux automatisch durchführt.
+Der Wechsel zu `bypassPermissions` von einem anderen Modus verwendet Shift+Tab-Navigation und erfordert keinen Neustart. Der Wechsel von `bypassPermissions` zu einem anderen Modus erfordert einen Neustart, den claude-mux automatisch durchfuehrt.
 
-## Wie setze ich eine Sitzung zurück?
+## Wie setze ich eine Sitzung zurueck?
 
 Drei Optionen, je nachdem was du brauchst:
 
-- **Leeren** ("clear this session"): sendet `/clear` an die Sitzung. Löscht den Konversationsverlauf und startet frisch. Die Sitzung läuft weiter.
-- **Komprimieren** ("compact this session"): sendet `/compact` an die Sitzung. Fasst die Konversation in einen kürzeren Kontext zusammen und gibt das Kontextfenster frei. Der Verlauf bleibt in komprimierter Form erhalten.
-- **Neustarten** ("restart this session"): fährt Claude herunter und startet ihn mit `claude -c` neu, was die letzte Konversation wieder aufnimmt. Verwende dies, wenn du einen sauberen Prozess brauchst (z. B. nach dem Wechsel des Berechtigungsmodus oder wenn Claude hängt).
+- **Clear** ("loesche diese Sitzung"): sendet `/clear` an die Sitzung. Loescht den Konversationsverlauf und startet frisch. Die Sitzung laeuft weiter.
+- **Compact** ("komprimiere diese Sitzung"): sendet `/compact` an die Sitzung. Fasst die Konversation in einen kuerzeren Kontext zusammen und gibt das Kontextfenster frei. Der Verlauf bleibt in komprimierter Form erhalten.
+- **Restart** ("starte diese Sitzung neu"): faehrt Claude herunter und startet es mit `claude -c` neu, was die letzte Konversation fortsetzt. Nutze dies, wenn du einen sauberen Prozess brauchst (z.B. nach Aenderung der Berechtigungsmodi oder wenn Claude haengt).
 
-## Was sind Vorlagen?
+## Was sind Templates?
 
-Vorlagen sind wiederverwendbare CLAUDE.md-Dateien, die in `~/.claude-mux/templates/` gespeichert werden. Wenn du ein neues Projekt mit `-n` erstellst, wird die Standardvorlage (oder eine, die du mit `--template NAME` angibst) als CLAUDE.md ins Projekt kopiert.
+Templates sind wiederverwendbare CLAUDE.md-Dateien in `~/.claude-mux/templates/`. Wenn du ein neues Projekt mit `-n` erstellst, wird das Standard-Template (oder eines, das du mit `--template NAME` angibst) als CLAUDE.md ins Projekt kopiert.
 
-Vorlage erstellen: "save this as a template named web" (kopiert die CLAUDE.md des aktuellen Projekts nach `~/.claude-mux/templates/web.md`).
+Template erstellen: "speichere das als Template mit dem Namen web" (kopiert das CLAUDE.md des aktuellen Projekts nach `~/.claude-mux/templates/web.md`).
 
-Vorlage verwenden: `claude-mux -n ~/projekte/my-app --template web` oder aus einer Sitzung heraus: "create a new project called my-app using the web template".
+Template verwenden: `claude-mux -n ~/projekte/my-app --template web` oder innerhalb einer Sitzung: "erstelle ein neues Projekt namens my-app mit dem web-Template".
 
-Vorlagen auflisten: "list templates" oder `claude-mux --list-templates`.
+Templates auflisten: "Templates auflisten" oder `claude-mux --list-templates`.
 
-## Wie funktioniert der Tipp des Tages?
+## Wie funktioniert der Tip-of-the-Day?
 
-Ein Claude Code Stop-Hook in der `.claude/settings.local.json` jedes Projekts ruft `claude-mux --tipotd` nach jedem Gesprächszug auf. Der Befehl prüft, ob heute bereits ein Tipp angezeigt wurde (über `~/.claude-mux/.tip-date`). Falls ja, beendet er sich in etwa 6ms. Falls nein, gibt er einen Tipp aus und speichert das heutige Datum.
+Ein Claude Code Stop-Hook in der `.claude/settings.local.json` jedes Projekts ruft `claude-mux --tipotd` nach jeder Konversationsrunde auf. Der Befehl prueft, ob heute schon ein Tipp gezeigt wurde (ueber `~/.claude-mux/.tip-date`). Falls ja, beendet er sich in etwa 6ms. Falls nein, zeigt er einen Tipp an und speichert das heutige Datum.
 
-Tipps sind standardmäßig aktiviert (`TIP_OF_DAY=true`). Umschalten mit "enable tips" oder "disable tips" in einer beliebigen Sitzung. `TIP_MODE=daily` zeigt den ganzen Tag denselben Tipp; `TIP_MODE=random` wählt einen zufälligen Tipp pro Aufruf (mit dem Stop-Hook bedeutet das einen zufälligen Tipp pro Tag aufgrund der täglichen Sperre).
+Tipps sind standardmaessig aktiviert (`TIP_OF_DAY=true`). Umschalten mit "tips aktivieren" oder "tips deaktivieren" innerhalb jeder Sitzung. `TIP_MODE=daily` zeigt den ganzen Tag denselben Tipp; `TIP_MODE=random` waehlt bei jedem Aufruf einen zufaelligen Tipp (mit dem Stop-Hook bedeutet das aufgrund der Tagessperre einen zufaelligen Tipp pro Tag).
 
-Der `--tip`-Befehl funktioniert immer unabhängig von der täglichen Sperre, sodass du jederzeit "tip" sagen kannst.
+Der `--tip`-Befehl funktioniert immer unabhaengig von der Tagessperre, du kannst also jederzeit "tip" sagen.
 
-## Kann ich das mit mehreren GitHub-Accounts verwenden?
+## Kann ich das mit mehreren GitHub-Konten nutzen?
 
-Ja. claude-mux erkennt `Host github.com-*`-Einträge in `~/.ssh/config` und injiziert sie in den System-Prompt jeder Sitzung. Claude weiß, welche SSH-Aliase verfügbar sind, und kann den richtigen beim Einrichten von Git-Remotes verwenden.
+Ja. claude-mux erkennt `Host github.com-*`-Eintraege in `~/.ssh/config` und injiziert sie in den System-Prompt jeder Sitzung. Claude weiss, welche SSH-Aliase verfuegbar sind und kann den richtigen beim Einrichten von Git-Remotes verwenden.
 
-Beispiel für `~/.ssh/config`:
+Beispiel `~/.ssh/config`:
 
 ```
 Host github.com-work
@@ -79,30 +79,30 @@ Host github.com-personal
   IdentityFile ~/.ssh/id_personal
 ```
 
-Claude verwendet dann `git@github.com-work:org/repo.git` für Arbeits-Repos und `git@github.com-personal:user/repo.git` für persönliche.
+Claude verwendet dann `git@github.com-work:org/repo.git` fuer Arbeitsrepos und `git@github.com-personal:user/repo.git` fuer persoenliche.
 
-## Wo wird der Status gespeichert?
+## Wo wird der Zustand gespeichert?
 
-| Ort | Was dort liegt |
-|-----|----------------|
-| `~/.claude-mux/config` | Benutzerkonfiguration (wird als Bash eingelesen) |
-| `~/.claude-mux/templates/` | CLAUDE.md-Vorlagedateien |
-| `~/.claude-mux/.tip-date` | Datum des zuletzt angezeigten Tipps |
-| `~/.claude-mux/.update-check` | Gecachtes Ergebnis der Versionsprüfung |
-| `~/Library/Logs/claude-mux.log` | Logdatei (über `LOG_DIR` konfigurierbar) |
-| `~/Library/LaunchAgents/com.user.claude-mux.plist` | LaunchAgent-Plist (erzeugt von `--install`) |
-| `.claudemux-protected` (pro Projekt) | Markiert eine Sitzung als geschützt vor dem Herunterfahren |
-| `.claudemux-ignore` (pro Projekt) | Blendet ein Projekt aus Auflistungen aus |
+| Ort | Inhalt |
+|-----|--------|
+| `~/.claude-mux/config` | Benutzerkonfiguration (wird als Bash gesourct) |
+| `~/.claude-mux/templates/` | CLAUDE.md-Template-Dateien |
+| `~/.claude-mux/.tip-date` | Datum des zuletzt gezeigten Tipps |
+| `~/.claude-mux/.update-check` | Zwischengespeichertes Ergebnis der Versionspruefung |
+| `~/Library/Logs/claude-mux.log` | Logdatei (konfigurierbar ueber `LOG_DIR`) |
+| `~/Library/LaunchAgents/com.user.claude-mux.plist` | LaunchAgent-plist (generiert von `--install`) |
+| `.claudemux-protected` (pro Projekt) | Markiert eine Sitzung als geschuetzt vor dem Beenden |
+| `.claudemux-ignore` (pro Projekt) | Versteckt ein Projekt aus Auflistungen |
 
-Markierungsdateien (`.claudemux-*`) liegen im Stammverzeichnis jedes Projekts und folgen dem Ordner bei Umbenennung, Verschiebung und Synchronisierung. Sie werden automatisch zur `.gitignore` hinzugefügt.
+Markerdateien (`.claudemux-*`) liegen im Wurzelverzeichnis jedes Projekts und wandern mit dem Ordner bei Umbenennung, Verschiebung und Synchronisation. Sie werden automatisch zu `.gitignore` hinzugefuegt.
 
 Der Konversationsverlauf wird von Claude Code selbst verwaltet und unter `~/.claude/projects/` gespeichert.
 
-## Was passiert mit dem Auto-Update, wenn ich claude-mux forke?
+## Was passiert mit Auto-Update, wenn ich claude-mux forke?
 
-Die Update-Prüfung und der `--update`-Befehl verwenden fest `pereljon/claude-mux` als GitHub-Repo. Bei einem Fork vergleicht die Update-Prüfung weiterhin mit dem Upstream-Release, und `--update` überschreibt die Binärdatei deines Forks mit Upstream. Setze `UPDATE_CHECK=false` in `~/.claude-mux/config`, um das zu deaktivieren, oder ändere die Repo-URL in den Funktionen `check_for_update()` und `do_update()` im Skript.
+Die Update-Pruefung und der `--update`-Befehl verwenden fest `pereljon/claude-mux` als GitHub-Repo. Wenn du forkst, vergleichen Update-Pruefungen weiterhin mit dem Upstream-Release, und `--update` ueberschreibt dein Fork-Binary mit dem Upstream. Setze `UPDATE_CHECK=false` in `~/.claude-mux/config` zum Deaktivieren, oder aendere die Repo-URL in den Funktionen `check_for_update()` und `do_update()` im Skript.
 
-## Wie installiere ich über Homebrew?
+## Wie installiere ich ueber Homebrew?
 
 ```bash
 brew tap pereljon/tap
@@ -110,35 +110,39 @@ brew install claude-mux
 claude-mux --install
 ```
 
-Aktualisiere mit `brew upgrade claude-mux`. Hinweis: Falls du über Homebrew installiert hast, delegiert `--update` automatisch an `brew upgrade`.
+Aktualisieren mit `brew upgrade claude-mux`. Hinweis: Wenn du ueber Homebrew installiert hast, delegiert `--update` automatisch an `brew upgrade`.
 
 ## Wie unterscheidet sich das von `claude --worktree --tmux`?
 
-`claude --worktree --tmux` erstellt eine tmux-Sitzung für ein isoliertes git worktree, gedacht für parallele Codierungsaufgaben. claude-mux verwaltet persistente Sitzungen für deine tatsächlichen Projektverzeichnisse, mit aktivierter Remote Control, System-Prompt-Injection zur Selbstverwaltung, Wiederaufnahme von Konversationen und Sitzungslebenszyklusverwaltung. Sie lösen unterschiedliche Probleme.
+`claude --worktree --tmux` erstellt eine tmux-Sitzung fuer einen isolierten Git-Worktree, gedacht fuer parallele Programmieraufgaben. claude-mux verwaltet persistente Sitzungen fuer deine tatsaechlichen Projektverzeichnisse, mit aktiviertem Remote Control, System-Prompt-Injektion fuer Selbstverwaltung, Konversationsfortsetzung und Sitzungs-Lifecycle-Management. Sie loesen unterschiedliche Probleme.
+
+## Wie unterscheidet sich das von Claude Cowork Dispatch?
+
+Dispatch startet Aufgaben ueber die Claude-Desktop-App, erfordert aber, dass die App laeuft, und ist nicht an ein bestimmtes Projekt gebunden. claude-mux verwaltet persistente, projektgebundene Sitzungen, die Neustarts ueberleben und von ueberall ueber Remote Control erreichbar sind - keine Desktop-App erforderlich.
 
 ## Warum zeigen Sitzungen "Not logged in"?
 
-Das passiert beim ersten Start, wenn der macOS-Schlüsselbund gesperrt ist, was häufig vorkommt, wenn der LaunchAgent startet, bevor du den Schlüsselbund nach dem Login entsperrst. Behebe es, indem du `security unlock-keychain` in einem regulären Terminal ausführst, dann an eine beliebige Sitzung anhängst (`claude-mux -t <name>`) und `/login` ausführst, um den Browser-Auth-Flow abzuschließen. Danach alle Sitzungen neu starten, sie übernehmen die gespeicherten Anmeldedaten.
+Das passiert beim ersten Start, wenn der macOS-Schluesselband gesperrt ist, was haeufig vorkommt, wenn der LaunchAgent startet, bevor du den Schluesselband nach dem Login entsperrst. Loesung: `security unlock-keychain` in einem normalen Terminal ausfuehren, dann zu einer beliebigen Sitzung verbinden (`claude-mux -t <name>`) und `/login` ausfuehren, um den Browser-Auth-Flow abzuschliessen. Danach alle Sitzungen neu starten - sie uebernehmen dann die gespeicherten Anmeldedaten.
 
-## Können mehrere Terminals sich an dieselbe Sitzung anhängen?
+## Koennen mehrere Terminals dieselbe Sitzung nutzen?
 
-Ja. Das ist Standardverhalten von tmux. Wenn `claude-mux` in einem Verzeichnis ausgeführt wird, das bereits eine laufende Sitzung hat, wird diese angehängt. Mehrere Terminals sehen den gleichen Sitzungsinhalt in Echtzeit.
+Ja. Das ist Standard-tmux-Verhalten. `claude-mux` in einem Verzeichnis ausfuehren, das bereits eine laufende Sitzung hat, verbindet sich damit. Mehrere Terminals sehen den gleichen Sitzungsinhalt in Echtzeit.
 
 ## Wie stoppe ich die Home-Sitzung dauerhaft?
 
-Der LaunchAgent hat `KeepAlive: true`, sodass das Beenden der Home-Sitzung innerhalb von etwa 60 Sekunden einen Neustart auslöst. Um sie dauerhaft zu stoppen, deaktiviere den LaunchAgent:
+Der LaunchAgent hat `KeepAlive: true`, das Beenden der Home-Sitzung loest also innerhalb von etwa 60 Sekunden einen Neustart aus. Um sie dauerhaft zu stoppen, deaktiviere den LaunchAgent:
 
 ```bash
 claude-mux --install --launchagent-mode none
 ```
 
-## Was bedeutet die "Session ready!"-Meldung?
+## Was bedeutet die Meldung "Session ready!"?
 
-Wenn eine Sitzung startet oder neu startet, sendet claude-mux nach dem Laden von Claude einen `Ready?`-Prompt. Die Injection weist Claude an, mit "Session ready!" und nichts weiter zu antworten. Das bestätigt, dass die Sitzung aktiv ist und die System-Prompt-Injection funktioniert. Du kannst die Meldung ignorieren.
+Wenn eine Sitzung startet oder neugestartet wird, sendet claude-mux nach dem Laden von Claude einen `Ready?`-Prompt. Die Injektion weist Claude an, mit "Session ready!" und nichts anderem zu antworten. Das bestaetigt, dass die Sitzung aktiv ist und die System-Prompt-Injektion funktioniert. Du kannst es ignorieren.
 
-## Wie blende ich ein Projekt aus Auflistungen aus?
+## Wie verstecke ich ein Projekt aus Auflistungen?
 
-Sage "hide this project" in einer beliebigen Sitzung oder führe `claude-mux --hide my-project` aus. Dadurch wird eine `.claudemux-ignore`-Markierungsdatei erstellt. Das Projekt erscheint nicht mehr in der `claude-mux -L`-Ausgabe. Um ausgeblendete Projekte zu sehen: `claude-mux -L --hidden`. Zum Einblenden: "show this project" oder `claude-mux --show my-project`.
+Sage "verstecke dieses Projekt" innerhalb einer Sitzung, oder fuehre `claude-mux --hide my-project` aus. Das erstellt eine `.claudemux-ignore`-Markerdatei. Das Projekt erscheint nicht in der `claude-mux -L`-Ausgabe. Um versteckte Projekte zu sehen: `claude-mux -L --hidden`. Zum Einblenden: "zeige dieses Projekt" oder `claude-mux --show my-project`.
 
 ## Wie deinstalliere ich claude-mux?
 
@@ -146,16 +150,16 @@ Sage "hide this project" in einer beliebigen Sitzung oder führe `claude-mux --h
 claude-mux --uninstall
 ```
 
-Das entfernt Tipp-Hooks und Berechtigungsregeln aus allen Projekten, entlädt den LaunchAgent und entfernt optional `~/.claude-mux/`. Es zeigt den Binärpfad an, damit du ihn manuell löschen kannst (oder `brew uninstall claude-mux`, falls über Homebrew installiert).
+Das entfernt Tipp-Hooks und Berechtigungsregeln aus allen Projekten, entlaedt den LaunchAgent und entfernt optional `~/.claude-mux/`. Es zeigt den Binary-Pfad an, damit du ihn manuell loeschen kannst (oder `brew uninstall claude-mux` bei Installation ueber Homebrew).
 
-## Funktionieren Slash-Befehle über Remote Control?
+## Funktionieren Slash Commands ueber Remote Control?
 
-Nicht nativ. Claude Code unterstützt Slash-Befehle (`/model`, `/clear` usw.) in RC-Sitzungen nicht. claude-mux umgeht das, indem jede Sitzung mit `claude-mux -s` versehen wird, damit Claude Slash-Befehle über tmux an sich selbst senden kann. Sage einfach "switch to Haiku" oder "compact this session" und Claude erledigt den Rest.
+Nicht nativ. Claude Code unterstuetzt Slash Commands (`/model`, `/clear`, usw.) in RC-Sitzungen nicht. claude-mux umgeht das, indem jeder Sitzung `claude-mux -s` injiziert wird, sodass Claude Slash Commands ueber tmux an sich selbst senden kann. Sage einfach "wechsle zu Haiku" oder "komprimiere diese Sitzung" und Claude erledigt das.
 
-## Ich kann keinen Text in einer Sitzung auswählen
+## Ich kann keinen Text in einer Sitzung auswaehlen
 
-Halte **Option** (macOS) oder **Shift** (Linux/Windows-Terminals) gedrückt, während du klickst und ziehst. Das umgeht die Mauserfassung von tmux und kopiert die Auswahl in deine Systemzwischenablage. Keine Konfigurationsänderungen nötig.
+Halte **Option** (macOS) oder **Shift** (Linux/Windows-Terminals) gedrueckt, waehrend du klickst und ziehst. Das umgeht die Mauserfassung von tmux und kopiert die Auswahl in die Zwischenablage. Keine Konfigurationsaenderungen noetig.
 
-## Welche Sprachen werden für konversationelle Befehle unterstützt?
+## Welche Sprachen werden fuer Konversationsbefehle unterstuetzt?
 
-Alle. Die Auslösephrasen ("help", "status", "list sessions" usw.) funktionieren in jeder Sprache. Claude erkennt die Absicht aus der natürlichen Sprache des Benutzers und führt den passenden Befehl aus. Das README ist außerdem in 12 Sprachen übersetzt.
+Alle. Die Trigger-Phrasen ("help", "status", "list sessions", usw.) funktionieren in jeder Sprache. Claude erkennt die Absicht aus der natuerlichen Sprache des Benutzers und fuehrt den passenden Befehl aus. Die README ist auch in 12 Sprachen uebersetzt.

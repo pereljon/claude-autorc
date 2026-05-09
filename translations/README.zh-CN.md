@@ -2,24 +2,9 @@
 
 [English](../README.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português](README.pt-BR.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Italiano](README.it.md) · [Русский](README.ru.md) · **中文** · [עברית](README.he.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
 
-> 注意：此翻译可能落后于英文 README。规范版本请参阅 [README.md](../README.md)。
+为你所有项目提供持久的 Claude Code 会话 - 通过 Claude 移动应用随时随地访问。***由 Claude 管理！***
 
-为你所有项目提供持久的 Claude Code 会话 - 通过 Claude 移动应用从任何地方访问。***由 Claude 管理！***
-
-## 为什么
-
-Remote Control 承诺让你从任何地方使用 Claude Code，但没有会话管理，即使在 Claude Desktop 中也是二流体验：
-
-- 关闭终端后会话就消失，对话上下文不会自动恢复
-- 没有常驻的主会话，除非你留了什么开着，否则拿起手机时什么都没在运行
-- 没有运行中的会话，Remote Control 就毫无用处，既无法进入项目，也无法新建一个
-- 即使在运行中的 RC 会话里，斜杠命令也不起作用，无法切换模型、压缩上下文或更改权限模式
-- 新建项目需要手动创建目录、初始化 git、编写 CLAUDE.md、设置权限模式并选择模型，这些在 RC 中都无法完成
-- 管理多个项目意味着多次手动启动终端，却无法全局了解哪些项目在运行、处于什么状态
-
-claude-mux 解决了所有这些问题。它将 Claude Code 包裹在 tmux 中使会话持久，注入一段系统提示让 Claude 能管理自己的会话，并通过 tmux 路由斜杠命令使其在 Remote Control 下也能正常工作。会话一旦运行，你就可以通过对话管理一切，在终端或移动应用中都行。
-
-## 快速开始
+## 安装
 
 ```bash
 curl -fsSL https://github.com/pereljon/claude-mux/releases/latest/download/install.sh | bash
@@ -28,447 +13,127 @@ curl -fsSL https://github.com/pereljon/claude-mux/releases/latest/download/insta
 然后启动一个会话：
 
 ```bash
-cd ~/path/to/your/project
-claude-mux
-```
-
-或者：
-
-```bash
 claude-mux ~/path/to/your/project
 ```
 
-就这些。你已进入一个启用了 Remote Control 的、持久的、会话感知的 Claude 会话。从这里开始，一切都是对话式的。
+安装程序会询问你是否想在登录时启动一个 home 会话。如果接受，每次登录时都会自动启动一个受保护的 Claude 会话 - 即使你从未打开终端，也能随时通过手机或任何 Remote Control 客户端访问。
+
+就这样！你已经进入了一个持久的、感知会话的 Claude 会话，且已启用 Remote Control。**从这里开始，一切都是对话式的。**
+
+[Homebrew、手动安装及其他选项](../docs/INSTALL.md)
+
+## 为什么
+
+Remote Control 承诺可以在任何地方使用 Claude Code - 但如果没有会话管理，即使从 Claude Desktop 使用，它也只是一个二等接口：
+
+- **会话会消亡** - 关闭终端后会话就没了
+- **对话上下文** 不会自动恢复
+- **没有大本营** - 除非你特意留着什么不关，否则拿起手机时什么都没在运行
+- **Remote Control 需要运行中的会话** - 你无法从 RC 启动一个会话
+- **Slash 命令在 RC 会话中不可用** - 无法切换模型、压缩上下文或更改权限模式
+- **启动新项目** - 需要手动创建目录、初始化 git、编写 CLAUDE.md、选择模型
+- **没有项目管理** - 无法查看空闲项目，也无法在不破坏历史记录的情况下重命名、移动和删除项目
+
+**claude-mux 填补了会话管理的空白。** 它将 Claude Code 包装在 tmux 中使会话持久化，注入系统提示词使 Claude 能够管理自己的会话，并通过 tmux 路由 slash 命令使其在 Remote Control 上也能工作。一旦会话运行起来，你只需与 Claude 对话就能管理一切 - 无论是在终端还是移动应用中。
+
+## 在 claude-mux 会话中你能做什么
+
+- **从任何会话管理任何会话** - 使用自然语言启动、停止、重启、列出和压缩项目
+- **随时随地访问一切** - 每个会话都启用了 Remote Control，Claude 移动应用、桌面应用或任何远程客户端都是完整的操作界面
+- **切换模型和权限模式** - 说"切换到 Haiku"或"切换到 plan 模式"，Claude 会处理，即使通过 Remote Control 也可以
+- **创建新项目** - "创建一个叫 my-app 的新项目"会设置目录、git、CLAUDE.md，并启动一个会话。CLAUDE.md 模板让你可以跨项目复用指令。
+- **跨重启保持会话存活** - 可选的 home 会话在登录时启动并持续运行；所有会话自动恢复上一次对话
+- **通过 Remote Control 发送 slash 命令** - Claude 将 `/model`、`/compact`、`/clear` 及其他 slash 命令路由到运行中的会话，绕过一个[已知限制](https://github.com/anthropics/claude-code/issues/30674)
+- **保留对话历史** - 重命名、移动和重启项目都会自动保留对话历史
+- **组织项目** - 从任何会话内部隐藏、重命名、移动、删除和保护项目
+- **GitHub 多账号支持** - 检测 `~/.ssh/config` 中的 SSH 别名并注入到会话中，使 Claude 能为每个项目使用正确的账号
+- **多 CLI 编码工具支持** - 自动创建 `AGENTS.md` 和 `GEMINI.md` 符号链接，使 Codex CLI、Gemini CLI 等工具共享指令
+- **支持任何语言** - 对话命令通过意图推断，而非关键词匹配
 
 ## 与 Claude 对话
 
-这是日常使用 claude-mux 的方式。每个会话都注入了命令，让 Claude 可以管理会话、切换模型、发送斜杠命令、创建新项目，全部在对话内完成。你不需要记住 CLI 标志。
+这是你日常使用 claude-mux 的方式。每个会话都被注入了命令，使 Claude 能够管理会话、切换模型、发送 slash 命令和创建新项目 - 全部在对话中完成。你不需要记住 CLI 参数。
 
 ```
-你："status"
-Claude：报告会话名称、模型、权限模式、上下文用量，并列出所有会话
+你: "status"
+Claude: 报告会话名称、模型、权限模式、上下文使用情况，并列出所有会话
 
-你："list active sessions"
-Claude：显示所有运行中的会话及其状态
+你: "列出活跃会话"
+Claude: 显示所有运行中的会话及其状态
 
-你："start a session for my api-server project"
-Claude：在 ~/Claude/work/api-server 中启动会话
+你: "为我的 api-server 项目启动一个会话"
+Claude: 在 ~/Claude/work/api-server 中启动一个会话
 
-你："create a new project called mobile-app using the web template"
-Claude：创建项目目录，初始化 git，应用模板，启动会话
+你: "用 web 模板创建一个叫 mobile-app 的新项目"
+Claude: 创建项目目录、初始化 git、应用模板、启动会话
 
-你："switch this session to Haiku"
-Claude：通过 tmux 向自己发送 /model haiku
+你: "把这个会话切换到 Haiku"
+Claude: 通过 tmux 向自己发送 /model haiku
 
-你："compact the api-server session"
-Claude：向 api-server 会话发送 /compact
+你: "压缩 api-server 会话"
+Claude: 向 api-server 会话发送 /compact
 
-你："restart the web-dashboard session"
-Claude：关闭并重新启动会话，保留对话上下文
+你: "重启 web-dashboard 会话"
+Claude: 关闭并重新启动会话，保留对话上下文
 
-你："switch the api-server session to plan mode"
-Claude：以 plan 权限模式重启会话
+你: "把 api-server 会话切换到 plan 模式"
+Claude: 以 plan 权限模式重启会话
 
-你："switch this session to yolo mode"
-Claude：通过 Shift+Tab 切换到 bypassPermissions 模式，无需重启
+你: "把这个会话切换到 yolo 模式"
+Claude: 通过 Shift+Tab 切换到 bypassPermissions 模式 - 无需重启
 
-你："what mode is this session"
-Claude：报告当前权限模式（default、acceptEdits、plan、bypassPermissions）
+你: "这个会话是什么模式"
+Claude: 报告当前权限模式 (default, acceptEdits, plan, bypassPermissions)
 
-你："switch this session to Opus"
-Claude：通过 tmux 向自己发送 /model opus
+你: "把这个会话切换到 Opus"
+Claude: 通过 tmux 向自己发送 /model opus
 
-你："clear this session"
-Claude：向自己发送 /clear，重置对话
+你: "清除这个会话"
+Claude: 向自己发送 /clear，重置对话
 
-你："hide this project"
-Claude：写入 .claudemux-ignore，使项目从 -L 列表中隐藏
+你: "隐藏这个项目"
+Claude: 写入 .claudemux-ignore，使项目从 -L 列表中排除
 
-你："protect this session"
-Claude：写入 .claudemux-protected 并设置 tmux 标记，此后关闭会话需要 --force
+你: "保护这个会话"
+Claude: 写入 .claudemux-protected 并设置 tmux 标记 - 关闭现在需要 --force
 
-你："is this session protected"
-Claude：检查项目文件夹中是否存在 .claudemux-protected 并报告
+你: "这个会话受保护吗"
+Claude: 检查项目文件夹中是否存在 .claudemux-protected 并报告
 
-你："delete the old-prototype project"
-Claude：在对话中确认后，将项目文件夹移至系统回收站
+你: "删除 old-prototype 项目"
+Claude: 在聊天中确认，然后将项目文件夹移至系统回收站
 
-你："rename this project to my-new-name"
-Claude：停止会话，重命名文件夹，迁移对话历史，重启
+你: "把这个项目重命名为 my-new-name"
+Claude: 停止会话、重命名文件夹、迁移对话历史、重启
 
-你："save this as a template named web"
-Claude：将 CLAUDE.md 复制到 ~/.claude-mux/templates/web.md
+你: "把这个保存为名为 web 的模板"
+Claude: 将 CLAUDE.md 复制到 ~/.claude-mux/templates/web.md
 
-你："tip"
-Claude：打印一条技巧提示，全天同一条，或设置 TIP_MODE=random 时随机
+你: "tip"
+Claude: 显示一条提示 - 全天相同，或在设置 TIP_MODE=random 时随机
 
-你："enable tips" / "disable tips"
-Claude：在所有项目中注册或移除每日技巧钩子
+你: "启用提示" / "禁用提示"
+Claude: 在所有项目中注册或移除每日提示钩子
 
-你："update claude-mux"
-Claude：警告所有会话将重启，确认后更新并重启
+你: "更新 claude-mux"
+Claude: 警告所有会话将重启，请求确认，然后更新并重启
 
-你："stop all sessions"
-Claude：优雅地退出所有受管会话
+你: "停止所有会话"
+Claude: 优雅地退出所有托管会话
 
-你："help"
-Claude：打印完整的对话式命令列表
+你: "help"
+Claude: 显示完整的对话命令列表
 ```
 
-这些命令在任何语言下都有效。如果你用西班牙语、日语、希伯来语或任何其他语言输入等效表达，Claude 会推断意图并执行匹配的命令。
+**这些命令支持任何语言。** 如果你用中文、日文、希伯来文或任何其他语言输入等效内容，Claude 会推断意图并运行对应的命令。
 
-在任意会话中输入 `help` 可查看完整命令列表。
-
-### 主会话
-
-主会话是一个通用会话，位于你的根目录（默认为 `~/Claude`）。当 `LAUNCHAGENT_MODE=home` 时在登录时自动启动，让你拥有一个始终就绪、可从手机访问的 Claude 会话。无需先启动项目专属会话，就能用它管理所有其他会话。
-
-主会话**默认受保护** — `--shutdown home` 会拒绝在没有 `--force` 的情况下停止它。保护由 `$BASE_DIR` 中的 `.claudemux-protected` 标记文件控制，该文件由 `claude-mux --install` 创建。受保护的会话在状态列显示 `protected`；执行命令的会话在名称列前有 `>` 标记。
-
-## 它做什么
-
-在底层，claude-mux 处理以下事项：
-
-- **启用 Remote Control 的持久 tmux 会话** — 每个会话都可以通过 Claude 移动应用访问
-- **对话恢复** — 重新启动时恢复上一次对话（`claude -c`），保留上下文
-- **系统提示注入** — 每个会话都注入了用于自管理、斜杠命令路由和 SSH 账户感知的命令
-- **CLAUDE.md 模板** — 在 `~/.claude-mux/templates/` 中维护模板文件（如 `web.md`、`python.md`），并自动应用到新项目
-- **多 CLI 工具支持** — 将 `AGENTS.md` 和 `GEMINI.md` 创建为指向 `CLAUDE.md` 的符号链接，使 Codex CLI、Gemini CLI 及其他工具共享同一套指令
-- **自动批准权限** — 将 claude-mux 添加到每个项目的允许列表，让 Claude 无需提示即可运行会话命令
-- **野生进程迁移** — 如果 Claude 已在 tmux 之外运行，将其迁移到受管会话中
-- **Tmux 体验改进** — 鼠标支持、50k 滚动缓冲区、剪贴板集成、256 色、扩展按键、活动监视、标签标题
-
-> **注意：** 这与 `claude --worktree --tmux` 不同，后者为隔离的 git worktree 创建一个 tmux 会话。claude-mux 管理的是面向你实际项目目录的持久会话，并附带 Remote Control 和系统提示注入。
-
-## 系统要求
-
-- macOS（Apple Silicon 或 Intel）
-- [tmux](https://github.com/tmux/tmux) - `brew install tmux`
-- [Claude Code](https://claude.ai/code) - `brew install claude`
-
-## 安装
-
-### curl（推荐）
-
-```bash
-curl -fsSL https://github.com/pereljon/claude-mux/releases/latest/download/install.sh | bash
-```
-
-下载二进制文件，安装到 `~/bin`，添加到 `PATH`，并运行交互式配置。适用于 macOS 和 Linux（Linux 跳过 LaunchAgent 步骤）。
-
-更新：
-
-```bash
-claude-mux --update     # 可在任意会话内或终端运行
-```
-
-### Homebrew（macOS 替代方案）
-
-```bash
-brew tap pereljon/tap
-brew install claude-mux
-claude-mux --install
-```
-
-更新：
-
-```bash
-brew upgrade claude-mux
-```
-
-### 手动
-
-```bash
-./install.sh
-```
-
-`install.sh` 将二进制文件复制到 `~/bin` 并添加到 `PATH`。然后运行：
-
-```bash
-claude-mux --install
-```
-
-交互式配置会询问你的 Claude 项目所在位置、登录时是否启动主会话、以及使用哪个模型。它会创建 `~/.claude-mux/config` 并安装 LaunchAgent。
-
-使用 `--non-interactive` 跳过提示并接受默认值。
-
-选项：
-
-```bash
-claude-mux --install --non-interactive                     # 跳过提示，使用默认值
-claude-mux --install --base-dir ~/work/claude              # 使用不同的根目录
-claude-mux --install --launchagent-mode none               # 禁用 LaunchAgent 行为
-claude-mux --install --home-model haiku                    # 主会话使用 Haiku
-claude-mux --install --no-launchagent                      # 完全跳过 LaunchAgent 安装
-```
-
-LaunchAgent 在登录时运行 `claude-mux --autolaunch`，并有 45 秒的启动延迟，以便系统服务初始化。
-
-## 会话状态
-
-| 状态 | 含义 |
-|--------|---------|
-| `running` | tmux 会话存在且 Claude 正在运行 |
-| `protected` | 与 `running` 相同，但会话受保护 — `--shutdown` 需要 `--force` 才能停止 |
-| `stopped` | tmux 会话存在但 Claude 已退出 |
-| `idle` | `BASE_DIR` 下存在 `.claude/` 项目，但没有运行中的 claude-mux tmux 会话（仅在 `-L` 中显示） |
-
-会话名称前的 `>` 前缀（例如 `> home`）标记执行了列表命令的会话。
-
-在已有运行会话的目录中运行 `claude-mux` 会附加到该会话。多个终端可以附加到同一个会话（标准 tmux 行为）。
-
-## 项目标记
-
-项目级状态存储在项目根目录的标记文件中，而非中央配置。标记使用 `.claudemux-` 前缀，在 git 跟踪的项目中创建时会自动添加到 `.gitignore`。
-
-| 标记 | 含义 | CLI |
-|------|------|-----|
-| `.claudemux-protected` | 启动时保护会话 — `--shutdown` 需要 `--force` | `--protect` / `--unprotect` |
-| `.claudemux-ignore` | 在 `claude-mux -L` 列表中隐藏项目 | `--hide` / `--show` |
-
-```bash
-claude-mux --hide                    # 从 -L 列表中隐藏当前会话的项目
-claude-mux --hide my-project         # 按会话名隐藏特定项目
-claude-mux --show my-project         # 取消隐藏项目
-claude-mux --protect                 # 保护此会话防止意外关闭
-claude-mux --unprotect               # 移除保护
-claude-mux -L --hidden               # 仅列出隐藏的项目
-claude-mux --delete my-project       # 将项目文件夹移至系统回收站 (macOS)
-```
-
-标记会随项目文件夹的重命名和移动一起保留。单个 `.gitignore` 模式（`.claudemux-*`）涵盖所有当前及未来的标记。
-
-## 配置
-
-`~/.claude-mux/config` 由 `claude-mux --install` 创建（或在没有 config 的情况下首次运行任意命令时创建）。编辑该文件即可覆盖任何默认值，无需直接修改脚本。
-
-| 变量 | 默认值 | 说明 |
-|----------|---------|-------------|
-| `BASE_DIR` | `$HOME/Claude` | 用于扫描 Claude 项目（包含 `.claude/` 的目录）的根目录 |
-| `LOG_DIR` | `$HOME/Library/Logs` | `claude-mux.log` 文件所在目录 |
-| `DEFAULT_PERMISSION_MODE` | `auto` | 在每个项目中设置 Claude 的 `permissions.defaultMode`。有效值：`default`、`acceptEdits`、`plan`、`auto`、`dontAsk`、`bypassPermissions`。设为 `""` 可禁用。|
-| `ALLOW_CROSS_SESSION_CONTROL` | `false` | 为 `true` 时，Claude 会话可向其他会话发送斜杠命令，适合多 agent 编排 |
-| `TEMPLATES_DIR` | `$HOME/.claude-mux/templates` | 存放 CLAUDE.md 模板文件的目录 |
-| `DEFAULT_TEMPLATE` | `default.md` | 应用于新项目（`-n`）的默认模板。设为 `""` 可禁用。|
-| `SLEEP_BETWEEN` | `5` | 使用 `-a` 时各会话启动之间的秒数。如 RC 注册失败可调大。|
-| `HOME_SESSION_MODEL` | `""` | 主会话使用的模型。有效值：`sonnet`、`haiku`、`opus`。留空则继承 Claude 默认值。|
-| `MULTI_CODER_FILES` | `"AGENTS.md GEMINI.md"` | 以空格分隔的文件列表，这些文件将作为指向 `CLAUDE.md` 的符号链接创建，供其他 AI CLI 工具使用。设为 `""` 可禁用。|
-| `LAUNCHAGENT_MODE` | `home` | 登录时的 LaunchAgent 行为：`none`（什么也不做）或 `home`（启动受保护的主会话）。旧的 `LAUNCHAGENT_ENABLED=true` 等同于 `home`。|
-
-**Tmux 会话选项**（全部可配置，全部默认启用）：
-
-| 变量 | 默认值 | 说明 |
-|----------|---------|-------------|
-| `TMUX_MOUSE` | `true` | 鼠标支持 - 滚动、选择、调整窗格大小 |
-| `TMUX_HISTORY_LIMIT` | `50000` | 滚动缓冲区行数（tmux 默认是 2000） |
-| `TMUX_CLIPBOARD` | `true` | 通过 OSC 52 集成系统剪贴板 |
-| `TMUX_DEFAULT_TERMINAL` | `tmux-256color` | 终端类型，确保正确的颜色渲染 |
-| `TMUX_EXTENDED_KEYS` | `true` | 扩展按键序列，包括 Shift+Enter（需要 tmux 3.2+） |
-| `TMUX_ESCAPE_TIME` | `10` | Escape 键延迟（毫秒，tmux 默认是 500） |
-| `TMUX_TITLE_FORMAT` | `#S` | 终端/标签标题格式（`#S` = 会话名，`""` 可禁用） |
-| `TMUX_MONITOR_ACTIVITY` | `true` | 当其他会话有活动时通知 |
-
-## 目录结构
-
-通过是否存在 `.claude/` 目录来发现项目，深度不限：
-
-```
-~/Claude/
-├── work/
-│   ├── project-a/          # ✓ 含 .claude/ - 被管理
-│   │   └── .claude/
-│   ├── project-b/          # ✓ 含 .claude/ - 被管理
-│   │   └── .claude/
-│   └── -archived/          # ✗ 排除（以 - 开头）
-│       └── .claude/
-├── personal/
-│   ├── project-c/          # ✓ 含 .claude/ - 被管理
-│   │   └── .claude/
-│   ├── .hidden/            # ✗ 排除（隐藏目录）
-│   │   └── .claude/
-│   └── project-d/          # ✗ 无 .claude/ - 不是 Claude 项目
-├── deep/nested/project-e/  # ✓ 含 .claude/ - 任意深度都能找到
-│   └── .claude/
-└── ignored-project/        # ✗ 排除（.claudemux-ignore）
-    ├── .claude/
-    └── .claudemux-ignore
-```
-
-会话名由目录名派生：空格变为连字符，非字母数字字符（连字符除外）会被替换，首尾多余的连字符会被去除。如果目录名清洗后为空，会被跳过并记录一条警告。
-
-## 会话系统提示
-
-每个 Claude 会话以 `--append-system-prompt` 启动，包含其环境的相关上下文：
-
-```
-You are running inside tmux session '<session-name>'. claude-mux path: /path/to/claude-mux
-claude-mux version: <version>
-[Update available: <new-version> (found <date>). Tell the user and suggest they say "update claude-mux" to update.]
-
-Reference lookups (run on demand if you need information not covered by trigger rules):
-  claude-mux --guide          → conversational commands list (used for "help")
-  claude-mux --commands       → full CLI reference
-  claude-mux --config-help    → config options with defaults, types, descriptions
-  claude-mux --list-templates → available CLAUDE.md templates
-
-Rules:
-- Always run claude-mux using the absolute path shown above (claude-mux path:). The bare command may not be in PATH.
-- You CAN send slash commands (/model, /compact, /clear, etc.) to this session via the -s command.
-- Always use --no-attach with -d and -n — attach is interactive only
-- --shutdown and --restart never attach — safe to run from inside a session; do NOT add --no-attach to these commands
-- Always print command output verbatim in your response text — if a command fails, report the error
-- When command output contains <assistant-must-display> tags, include the COMPLETE content verbatim
-- The 'home' session is the always-available session in the base directory. It is protected (shows 'protected' in status): --shutdown requires --force, but --restart bypasses protection. Protection is driven by the .claudemux-protected marker.
-- Disambiguate 'home': 'home session' means the claude-mux session named home; 'home folder' means ~/
-- When asked to shut down sessions, run the command directly — protected sessions are skipped automatically
-- Use claude-mux for ALL session management. Never use raw tmux, ls, or other shell commands for session management.
-- Don't guess at claude-mux flags. If you need information not in the trigger rules, run the relevant lookup.
-- When user says: ready — respond with "Session ready!" on one line. Nothing else.
-- When user says: help — run claude-mux --guide and print the output verbatim
-- When user says: status — report session name, model, permission mode, context estimate, then run claude-mux -l
-- When user says: list active sessions — run claude-mux -l
-- When user says: list all sessions — run claude-mux -L
-- When user says: list hidden projects — run claude-mux -L --hidden
-- When user says: start session SESSION — run claude-mux -d SESSION --no-attach
-- When user says: stop this session / stop session NAME — run claude-mux --shutdown
-- When user says: stop all sessions — run claude-mux --shutdown
-- When user says: restart this session / restart session NAME — run claude-mux --restart
-- When user says: restart all sessions — run claude-mux --restart
-- When user says: start new session in FOLDER — run claude-mux -n FOLDER --no-attach
-- When user says: switch this session to MODE mode / switch session NAME to MODE mode
-- When user says: switch this session to MODEL model / switch session NAME to MODEL model
-- When user says: compact/clear this session / compact/clear session NAME
-- When user says: update claude-mux — warn sessions will restart, get confirmation, run --update then --restart
-- When user says: hide this project / hide PROJECT — run claude-mux --hide
-- When user says: show this project / show PROJECT / unhide PROJECT — run claude-mux --show
-- When user says: protect this session / protect SESSION — run claude-mux --protect
-- When user says: unprotect this session / unprotect SESSION — run claude-mux --unprotect
-- When user says: is this hidden / is this protected — check for .claudemux-ignore or .claudemux-protected
-- When user says: delete this project / delete PROJECT — confirm in chat first, then run claude-mux --delete SESSION --yes
-- When user says: list templates — run claude-mux --list-templates
-- When user says: enable tips / turn on tips — run claude-mux --enable-tips
-- When user says: disable tips / turn off tips — run claude-mux --disable-tips
-- These trigger phrases work in any language.
-
-Additional capabilities (run claude-mux --commands for full syntax):
-  - Attach interactively to a session (-t — user-only, never from inside a session)
-  - Start all sessions at once (-a)
-  - New project with a CLAUDE.md template (-n DIR --template NAME, -p for parent dirs)
-  - Force-shutdown a protected session (--shutdown SESSION --force)
-  - Hide/show projects (--hide / --show)
-  - Protect/unprotect sessions (--protect / --unprotect)
-  - Move a project to trash (--delete SESSION — macOS; honors protection unless --force)
-  - Enable/disable tip-of-the-day hook (--enable-tips / --disable-tips)
-  - Show all config options (--config-help)
-  - Run interactive setup or reconfigure (--install)
-  - Remove all hooks and permissions (--uninstall)
-  - Update claude-mux (--update)
-
-Self-targeting send: claude-mux -s '<session-name>' '/command' sends slash commands to yourself.
-GitHub SSH accounts configured in ~/.ssh/config: <accounts>.
-```
-
-主会话会收到额外上下文：其角色描述，以及用于读取/编辑配置和模板的自管理触发器。当 `ALLOW_CROSS_SESSION_CONTROL=true` 时，send 命令可定向到任意会话，而不仅仅是自身。该路径是启动时脚本的绝对路径，因此会话不依赖 `PATH`。
-
-## CLI 参考
-
-你很少需要直接使用这些，Claude 会在会话内为你运行它们。这些命令适用于脚本、自动化，或在会话外使用时。
-
-```bash
-# 启动并附加
-claude-mux                       # 在当前目录启动 Claude 并附加
-claude-mux ~/projects/my-app     # 在指定目录启动 Claude 并附加
-claude-mux -d ~/projects/my-app  # 同上（显式形式）
-claude-mux -t my-app             # 附加到已存在的 tmux 会话
-
-# 创建新项目
-claude-mux -n ~/projects/app     # 创建新 Claude 项目并附加
-claude-mux -n ~/new/path/app -p  # 同上，并创建目录及其父目录
-claude-mux -n ~/app --template web        # 使用指定 CLAUDE.md 模板创建新项目
-claude-mux -n ~/app --no-multi-coder      # 创建新项目但不创建 AGENTS.md/GEMINI.md 符号链接
-
-# 会话管理
-claude-mux -l                    # 按状态列出会话（active、running、stopped）
-claude-mux -L                    # 列出所有项目（活动 + 空闲）
-claude-mux -L --hidden           # 仅列出隐藏的项目
-claude-mux -s my-app '/model sonnet'      # 向会话发送斜杠命令
-claude-mux --shutdown my-app              # 关闭指定会话
-claude-mux --shutdown                     # 关闭所有受管会话
-claude-mux --shutdown home --force        # 关闭受保护的主会话
-claude-mux --restart my-app              # 重启指定会话
-claude-mux --restart                     # 重启所有运行中的会话
-claude-mux --permission-mode plan my-app  # 以 plan 模式重启会话
-claude-mux -a                    # 启动 BASE_DIR 下所有受管会话
-
-# 项目标记（所有命令使用会话名，而非路径）
-claude-mux --hide                # 从 -L 列表中隐藏当前会话的项目
-claude-mux --hide my-project     # 按会话名隐藏特定项目
-claude-mux --show my-project     # 取消隐藏项目
-claude-mux --protect             # 保护此会话防止意外关闭
-claude-mux --unprotect           # 移除保护
-claude-mux --delete my-project           # 将项目文件夹移至系统回收站 (macOS)
-claude-mux --delete my-project --yes     # 同上，跳过确认提示
-claude-mux --rename my-project new-name  # 重命名项目目录
-claude-mux --move my-project ~/Claude/work  # 将项目移至新的父目录
-
-# 其他
-claude-mux --list-templates      # 显示可用的 CLAUDE.md 模板
-claude-mux --guide               # 显示供会话内使用的对话式命令
-claude-mux --commands            # 显示完整 CLI 参考
-claude-mux --config-help         # 显示所有配置选项及其默认值和说明
-claude-mux --install             # 交互式配置：config + LaunchAgent
-claude-mux --update              # 更新到最新版本
-claude-mux --dry-run             # 预览动作但不执行
-claude-mux --version             # 打印版本号
-claude-mux --help                # 显示所有选项
-
-# 跟踪日志
-tail -f ~/Library/Logs/claude-mux.log
-```
-
-从终端运行时，输出会实时镜像到 stdout。通过 LaunchAgent 运行时，输出仅写入日志文件。
-
-## 故障排查
-
-### 会话显示 "Not logged in · Run /login"
-
-这通常发生在首次启动时，macOS keychain 还处于锁定状态（脚本在登录后 keychain 解锁之前运行时常见）。修复方式：
-
-```bash
-# 在普通终端解锁 keychain
-security unlock-keychain
-
-# 然后在任意一个运行中的会话里完成认证
-claude-mux -t <any-session>
-# 运行 /login 并完成浏览器流程
-```
-
-完成一次认证后，关闭并重新启动所有会话，它们会自动获取已存储的凭据。
-
-### 会话未出现在 Claude Code Remote 中
-
-会话必须已认证（不显示 "Not logged in"）。在干净的已认证启动后，几秒内它们就应当出现在 RC 列表里。
-
-### tmux 中的多行输入
-
-`/terminal-setup` 命令无法在 tmux 内运行。claude-mux 默认启用了 tmux 的 `extended-keys`（`TMUX_EXTENDED_KEYS=true`），它在大多数现代终端中支持 Shift+Enter。如果 Shift+Enter 不起作用，可在提示中使用 `\` + Return 输入换行。
-
-### 会话启动时显示 "Session ready!"
-
-会话启动或重启时，claude-mux 会在 Claude 加载完成后自动发送 `Ready?` 消息。注入内容告知 Claude 用 "Session ready!" 单独回复，别无其他。这确认了会话处于活跃状态且注入正在工作。
-
-### 通过 Remote Control 使用斜杠命令
-
-斜杠命令（如 `/model`、`/clear`）在 RC 会话中[并未原生支持](https://github.com/anthropics/claude-code/issues/30674)。claude-mux 对此做了变通：每个会话都注入了 `claude-mux -s`，让 Claude 通过 tmux 向自己发送斜杠命令。
-
-## 日志
-
-- `~/Library/Logs/claude-mux.log` — 所有脚本动作，附带 UTC 时间戳（可通过 `LOG_DIR` 配置）
-
-如需进行底层 LaunchAgent 调试，请使用 Console.app 或 `log show`。
+**在任何会话中输入 `help` 查看完整命令列表。**
 
 ## 更多
 
-- [FAQ](FAQ.zh-CN.md) — claude-mux 常见问题
-- [已知问题](ISSUES.zh-CN.md) — 已知 bug、计划功能和已解决的问题
-- [更新日志](../CHANGELOG.md) — 每个版本的变更内容
+- [CLI 参考](../docs/CLI.md) - 用于脚本和自动化的完整命令参考
+- [指南](../docs/guide.md) - 配置、会话详情、内部机制和故障排除
+- [安装选项](../docs/INSTALL.md) - Homebrew、手动安装、LaunchAgent 设置
+- [常见问题](../docs/FAQ.md) - 关于 claude-mux 的常见问题
+- [已知问题](../docs/ISSUES.md) - 已知 bug、计划功能和已解决的问题
+- [变更日志](../CHANGELOG.md) - 每个版本的变更内容
